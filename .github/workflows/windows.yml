@@ -1,0 +1,156 @@
+name: Windows
+
+on:
+  push:
+    branches: [windows]
+  pull_request:
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  core:
+    name: Core tests, CLI and smoke test
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows -> target
+
+      - name: Core tests
+        run: cargo test -p spacesaver-core
+
+      - name: Build CLI (release)
+        run: cargo build --release -p spacesaver-cli
+
+      - name: Seed real caches and two smoke projects
+        run: |
+          # A dormant and an active Node project inside the user profile.
+          $smoke = Join-Path $env:USERPROFILE 'spacesaver-smoke'
+          foreach ($name in 'old-app', 'new-app') {
+            $root = Join-Path $smoke $name
+            $pkg = Join-Path $root 'node_modules\left-pad'
+            New-Item -ItemType Directory -Force -Path $pkg | Out-Null
+            Set-Content -Path (Join-Path $root 'package.json') -Value '{ "name": "smoke", "version": "1.0.0" }'
+            Set-Content -Path (Join-Path $root 'package-lock.json') -Value '{}'
+            $f = [System.IO.File]::Create((Join-Path $pkg 'blob.bin')); $f.SetLength(3MB); $f.Close()
+          }
+          Get-ChildItem -File (Join-Path $smoke 'old-app') | ForEach-Object { $_.LastWriteTime = (Get-Date).AddDays(-90) }
+          # Real package-manager caches in their default Windows locations.
+          npm cache add typescript@5.6.3 --cache "$env:LOCALAPPDATA\npm-cache"
+          python -m pip download --no-deps --only-binary=:all: -d "$env:RUNNER_TEMP\pipdl" numpy
+          exit 0
+
+      - name: CLI smoke test
+        run: |
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+          $exe = (Resolve-Path 'target\release\spacesaver.exe').Path
+          & $exe --version
+          & $exe status
+          if ($LASTEXITCODE -ne 0) { throw 'status failed' }
+
+          $raw = & $exe scan --json
+          if ($LASTEXITCODE -ne 0) { throw 'scan failed' }
+          $scan = ($raw -join "`n") | ConvertFrom-Json
+          "Scan: $($scan.items.Count) items in $($scan.durationMs) ms"
+          '{0,-20} {1,12} {2,6} {3,15}' -f 'CATEGORY', 'SIZE', 'ITEMS', 'RECOMMENDED'
+          foreach ($c in $scan.categories) {
+            '{0,-20} {1,9:N1} MB {2,6} {3,12:N1} MB' -f $c.title, ($c.size / 1MB), $c.count, ($c.recommendedSize / 1MB)
+          }
+          ''
+          'Items:'
+          foreach ($i in $scan.items) {
+            $flag = if ($i.recommended) { '*' } else { ' ' }
+            $note = if ($i.blockedReason) { "  [blocked: $($i.blockedReason)]" } else { '' }
+            '  {0} {1,-16} {2,9:N1} MB  {3,-7} {4}  {5}{6}' -f $flag, $i.category, ($i.size / 1MB), $i.risk, $i.title, $i.subtitle, $note
+          }
+
+          $caches = @($scan.items | Where-Object { $_.category -eq 'packageCaches' })
+          if ($caches.Count -lt 1) { throw 'No package caches found' }
+          $old = @($scan.items | Where-Object { $_.paths[0] -like '*spacesaver-smoke\old-app\node_modules' })
+          $new = @($scan.items | Where-Object { $_.paths[0] -like '*spacesaver-smoke\new-app\node_modules' })
+          if ($old.Count -ne 1 -or -not $old[0].recommended) { throw 'The dormant smoke project should be recommended' }
+          if ($new.Count -ne 1 -or $new[0].recommended) { throw 'The active smoke project must not be recommended' }
+          "Dormant project: $($old[0].tags -join ', ')"
+          "Active project:  $($new[0].tags -join ', ')"
+
+          ''
+          & $exe scan -c projects
+          & $exe scan -c wsl
+
+          # Dry run: nothing moves.
+          $nm = Join-Path $env:USERPROFILE 'spacesaver-smoke\old-app\node_modules'
+          & $exe clean -c projects
+          if (-not (Test-Path $nm)) { throw 'The dry run removed files' }
+
+          # Real run on project artifacts only, then restore from the Recycle Bin.
+          $report = (& $exe clean --yes -c projects --json) -join "`n" | ConvertFrom-Json
+          "Moved $($report.items.Count) items, $([math]::Round($report.bytes / 1MB, 1)) MB. Errors: $($report.errors -join '; ')"
+          if (Test-Path $nm) { throw 'node_modules was not moved to the Recycle Bin' }
+          if (-not $report.entry) { throw 'No activity entry was written' }
+          & $exe activity
+          & $exe restore $report.entry.id
+          if ($LASTEXITCODE -ne 0) { throw 'restore failed' }
+          if (-not (Test-Path (Join-Path $nm 'left-pad\blob.bin'))) { throw 'Restore did not bring node_modules back' }
+          & $exe status
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spacesaver-cli
+          path: windows/target/release/spacesaver.exe
+          if-no-files-found: error
+
+  app:
+    name: Desktop app (NSIS installer)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows -> target
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate icons from docs/assets/icon-512.png
+        run: npx --yes @tauri-apps/cli@2 icon ../../docs/assets/icon-512.png -o icons
+
+      - name: Build app and NSIS installer
+        run: npx --yes @tauri-apps/cli@2 build --bundles nsis
+
+      - name: List bundle
+        run: Get-ChildItem ..\target\release\bundle -Recurse -File | ForEach-Object { '{0,12:N0}  {1}' -f $_.Length, $_.FullName }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpaceSaver-windows-setup
+          path: windows/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

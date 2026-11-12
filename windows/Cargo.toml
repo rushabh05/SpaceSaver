@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = ["core", "cli", "app"]
+# `cargo build` / `cargo test` without -p skip the Tauri app (it needs generated icons first).
+default-members = ["core", "cli"]
+
+[profile.release]
+strip = true
+lto = "thin"

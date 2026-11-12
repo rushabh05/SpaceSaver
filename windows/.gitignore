@@ -1,0 +1,5 @@
+/target/
+Cargo.lock
+# Generated from docs/assets/icon-512.png by `npx @tauri-apps/cli@2 icon` (see README).
+/app/icons/
+/app/gen/

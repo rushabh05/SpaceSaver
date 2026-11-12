@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>SpaceSaver</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand"><span class="logo" id="logo"></span><b>SpaceSaver</b></div>
+      <nav class="side-list" id="nav" aria-label="Sections"></nav>
+      <div class="side-disk" id="side-disk"></div>
+    </aside>
+    <main class="main">
+      <header class="toolbar">
+        <span class="demo-chip" id="demo-chip" hidden title="No Windows backend: showing built-in demo data">Demo data</span>
+        <span class="scan-chip" id="scan-chip"></span>
+        <button class="tb-btn" id="rescan" type="button" title="Scan again" aria-label="Scan again"></button>
+      </header>
+      <section class="content" id="content" tabindex="-1"></section>
+      <div class="sel-bar" id="sel-bar" hidden></div>
+    </main>
+  </div>
+  <div class="modal" id="modal" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="icons.js"></script>
+  <script src="demo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

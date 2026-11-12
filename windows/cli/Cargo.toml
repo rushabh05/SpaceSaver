@@ -1,0 +1,15 @@
+[package]
+name = "spacesaver-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "SpaceSaver for Windows command line"
+publish = false
+
+[[bin]]
+name = "spacesaver"
+path = "src/main.rs"
+
+[dependencies]
+spacesaver-core = { path = "../core" }
+serde_json = "1"
