@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpaceSaver · Disk cleaner for developers</title>
+  <meta name="description" content="SpaceSaver is a free, native macOS app that finds the gigabytes your dev tools leave behind (node_modules, Xcode DerivedData, Docker build cache, package caches, AI models) and clears them safely, with undo.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07080d" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SpaceSaver: get back the gigabytes your dev tools leave behind">
+  <meta property="og:description" content="Free native macOS disk cleaner for developers. Safe by default, undo for everything, a Dynamic Island in your notch.">
+  <meta property="og:image" content="assets/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" type="image/png" href="assets/icon-64.png">
+  <link rel="apple-touch-icon" href="assets/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+
+<header class="nav" id="top">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="SpaceSaver home">
+      <img src="assets/icon-64.png" alt="" width="28" height="28">
+      <span>SpaceSaver</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#island">Island</a>
+      <a href="#safety">Safety</a>
+      <a href="#developers">CLI &amp; MCP</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="icon-link" href="https://github.com/rushabh05/SpaceSaver" aria-label="Source on GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+      </a>
+      <a class="btn btn-primary btn-sm" data-download href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg">
+        <i data-lucide="download"></i><span>Download</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap hero-copy">
+      <a class="pill reveal" href="#island"><span class="pill-dot"></span>New: a Dynamic Island for your MacBook's notch <i data-lucide="arrow-right"></i></a>
+      <h1 class="reveal">Get back the gigabytes<br class="br-wide"> your dev tools <span class="grad">leave behind.</span></h1>
+      <p class="lede reveal">SpaceSaver finds what macOS hides under “System Data”: stale <code>node_modules</code>, Xcode DerivedData, Docker build cache, package caches, local AI models and agent transcripts. It clears them safely, moving files to the Trash so you can undo.</p>
+      <div class="cta-row reveal">
+        <a class="btn btn-primary btn-lg shimmer" data-download href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg">
+          <i data-lucide="download"></i><span>Download for Mac</span>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="#install"><i data-lucide="book-open"></i><span>How to install</span></a>
+      </div>
+      <p class="meta reveal"><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14 or later · Free, no account</p>
+    </div>
+
+    <div class="wrap">
+      <div class="scaler hero-scaler reveal" data-w="1200" data-h="760">
+        <div class="scaled stage" aria-label="SpaceSaver app with the Dynamic Island open in the MacBook notch" role="img">
+          <div class="wallpaper"></div>
+          <div class="menubar">
+            <div class="mb-left"><span class="mb-logo"></span><b>SpaceSaver</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span></div>
+            <div class="mb-right"><i data-lucide="wifi"></i><i data-lucide="battery-medium"></i><i data-lucide="search"></i><span>Thu 2:41 PM</span></div>
+          </div>
+          <div class="island-host" data-island="hero"></div>
+
+          <div class="mac-window">
+            <div class="win-side">
+              <div class="traffic"><span></span><span></span><span></span></div>
+              <div class="side-list">
+                <div class="side-item active"><span class="tile" style="--c:#4f82ff"><i data-lucide="gauge"></i></span>Overview</div>
+                <div class="side-item"><span class="tile" style="--c:#12a1c7"><i data-lucide="layout-grid"></i></span>Storage Map</div>
+                <div class="side-item"><span class="tile" style="--c:#e6804d"><i data-lucide="file-stack"></i></span>Large Files</div>
+                <div class="side-item"><span class="tile" style="--c:#99994d"><i data-lucide="copy"></i></span>Duplicates</div>
+                <div class="side-head">Developer</div>
+                <div class="side-item"><span class="tile" style="--c:#5c8cfa"><i data-lucide="package"></i></span>Project Artifacts<em>12.4 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#339ef2"><i data-lucide="hammer"></i></span>Xcode &amp; Simulators<em>18.9 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#2194cc"><i data-lucide="container"></i></span>Docker<em>7.2 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#8c6bf2"><i data-lucide="archive"></i></span>Package Caches<em>26.1 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#6b66d9"><i data-lucide="code"></i></span>IDEs &amp; Editors<em>3.1 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#d961bf"><i data-lucide="brain"></i></span>AI Models<em>22.6 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#ed738c"><i data-lucide="messages-square"></i></span>AI Session Logs<em>1.4 GB</em></div>
+                <div class="side-head">System</div>
+                <div class="side-item"><span class="tile" style="--c:#fa9e33"><i data-lucide="sparkles"></i></span>System Junk<em>4.9 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#33b399"><i data-lucide="download"></i></span>Old Downloads<em>2.9 GB</em></div>
+                <div class="side-item"><span class="tile" style="--c:#8c8c99"><i data-lucide="history"></i></span>Activity</div>
+              </div>
+              <div class="side-disk">
+                <svg viewBox="0 0 36 36" class="mini-gauge"><circle cx="18" cy="18" r="14" class="trk"/><circle cx="18" cy="18" r="14" class="val" pathLength="100" stroke-dasharray="96 100"/></svg>
+                <div><b>18.6 GB free</b><span>of 494.4 GB</span></div>
+              </div>
+            </div>
+            <div class="win-main">
+              <div class="toolbar">
+                <span class="scan-chip"><i data-lucide="check-circle-2"></i>Scanned 2 min ago</span>
+                <span class="tb-btn"><i data-lucide="rotate-cw"></i></span>
+              </div>
+              <div class="win-content">
+                <h2 class="greet">Good afternoon</h2>
+                <p class="greet-sub">42.2 GB can go safely. Last checked 2 minutes ago.</p>
+
+                <div class="w-card hero-card">
+                  <div class="ring-box">
+                    <svg viewBox="0 0 200 200" class="ring" data-ring>
+                      <defs>
+                        <linearGradient id="gBrand" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f82ff"/><stop offset="1" stop-color="#8f5efa"/></linearGradient>
+                        <linearGradient id="gOk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#21cc8f"/><stop offset="1" stop-color="#12a1c7"/></linearGradient>
+                        <linearGradient id="gWarn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7b23b"/><stop offset="1" stop-color="#f58533"/></linearGradient>
+                      </defs>
+                      <circle class="ring-track" cx="100" cy="100" r="82"/>
+                      <circle class="ring-seg" data-seg="392.6" stroke="url(#gBrand)" cx="100" cy="100" r="82" pathLength="1000"/>
+                      <circle class="ring-seg" data-seg="41.0" stroke="url(#gWarn)" cx="100" cy="100" r="82" pathLength="1000"/>
+                      <circle class="ring-seg" data-seg="42.2" stroke="url(#gOk)" cx="100" cy="100" r="82" pathLength="1000"/>
+                    </svg>
+                    <div class="ring-center">
+                      <b class="danger-text">18.6 GB</b>
+                      <span>free of 494 GB</span>
+                      <em>96% used</em>
+                    </div>
+                  </div>
+                  <div class="legend">
+                    <div class="lg-head"><i data-lucide="hard-drive"></i><b>Macintosh HD</b><span class="chip">APFS</span></div>
+                    <div class="lg-row"><span class="dot" style="--c:#5f74ff"></span>Used by files<span class="bar"><span style="--w:79%;--c1:#4f82ff;--c2:#8f5efa"></span></span><b>392.6 GB</b></div>
+                    <div class="lg-row"><span class="dot" style="--c:#f59e0b"></span>Needs review<span class="bar"><span style="--w:8.3%;--c1:#f7b23b;--c2:#f58533"></span></span><b>41.0 GB</b></div>
+                    <div class="lg-row"><span class="dot" style="--c:#21cc8f"></span>Safe to clean<span class="bar"><span style="--w:8.5%;--c1:#21cc8f;--c2:#12a1c7"></span></span><b>42.2 GB</b></div>
+                    <div class="lg-row"><span class="dot" style="--c:#9aa0b2"></span>Free<span class="bar"><span style="--w:3.8%;--c1:#9aa0b2;--c2:#9aa0b2"></span></span><b>18.6 GB</b></div>
+                    <div class="spark">
+                      <span>Free space, last 30 days</span>
+                      <svg viewBox="0 0 400 70" preserveAspectRatio="none">
+                        <defs><linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f5efa" stop-opacity=".28"/><stop offset="1" stop-color="#8f5efa" stop-opacity="0"/></linearGradient></defs>
+                        <path d="M0 10 L40 14 L80 13 L120 22 L160 26 L200 25 L240 36 L280 41 L320 47 L360 52 L400 56 L400 70 L0 70 Z" fill="url(#gArea)"/>
+                        <path d="M0 10 L40 14 L80 13 L120 22 L160 26 L200 25 L240 36 L280 41 L320 47 L360 52 L400 56" fill="none" stroke="url(#gBrand)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="w-row">
+                  <div class="w-card smart">
+                    <div class="smart-l">
+                      <span class="w-label ok"><i data-lucide="wand-sparkles"></i>Smart Clean</span>
+                      <b class="smart-num">42.2 GB</b>
+                      <p>88 regenerable items: caches, dormant projects' build folders, and installers you've already used.</p>
+                      <span class="w-btn ok"><i data-lucide="sparkles"></i>Clean 42.2 GB</span>
+                    </div>
+                    <div class="smart-r">
+                      <div class="sm-row"><i data-lucide="archive"></i>Package Caches<span class="bar"><span style="--w:100%;--c1:#8c6bf2;--c2:#b28cff"></span></span><b>24.8 GB</b></div>
+                      <div class="sm-row"><i data-lucide="package"></i>Project Artifacts<span class="bar"><span style="--w:27%;--c1:#4f82ff;--c2:#7aa2ff"></span></span><b>6.8 GB</b></div>
+                      <div class="sm-row"><i data-lucide="hammer"></i>Xcode &amp; Simulators<span class="bar"><span style="--w:23%;--c1:#339ef2;--c2:#6cc0ff"></span></span><b>5.7 GB</b></div>
+                      <div class="sm-row"><i data-lucide="download"></i>Old Downloads<span class="bar"><span style="--w:12%;--c1:#21cc8f;--c2:#12a1c7"></span></span><b>2.9 GB</b></div>
+                      <div class="sm-row"><i data-lucide="sparkles"></i>System Junk<span class="bar"><span style="--w:8%;--c1:#fa9e33;--c2:#ffc266"></span></span><b>2.0 GB</b></div>
+                    </div>
+                  </div>
+                  <div class="w-card room">
+                    <span class="w-label"><i data-lucide="shrink"></i>Make room for…</span>
+                    <b class="room-num">20 <small>GB</small></b>
+                    <div class="fake-slider"><span></span></div>
+                    <p><i data-lucide="check-circle-2"></i>3 items, safest first</p>
+                    <span class="w-btn brand">Plan 24.1 GB</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">An interactive mock-up built from the app's design with demo data. Hover over or tap the notch.</p>
+    </div>
+  </section>
+
+  <!-- TOOLS STRIP -->
+  <section class="strip" aria-label="Supported tools">
+    <div class="marquee">
+      <div class="marquee-track">
+        <span>node_modules</span><span>Xcode</span><span>Simulators</span><span>Docker</span><span>OrbStack</span><span>npm</span><span>pnpm</span><span>Yarn</span><span>Bun</span><span>pip</span><span>uv</span><span>Cargo</span><span>Go</span><span>Gradle</span><span>Maven</span><span>Homebrew</span><span>CocoaPods</span><span>Flutter</span><span>VS Code</span><span>Cursor</span><span>Windsurf</span><span>Zed</span><span>JetBrains</span><span>Hugging Face</span><span>Ollama</span><span>LM Studio</span><span>Claude Code</span><span>Codex</span><span>Copilot</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="wrap stats">
+    <div class="stat reveal"><b data-count="3.2" data-dec="1">3.2</b><span>MB download. Native Swift, no Electron</span></div>
+    <div class="stat reveal"><b data-count="45">45</b><span>build-artifact rules, each tied to its manifest</span></div>
+    <div class="stat reveal"><b>0</b><span>accounts, licence keys or telemetry</span></div>
+    <div class="stat reveal"><b>6</b><span>MCP tools for agents, all propose-only</span></div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">What it finds</span>
+        <h2>Knows where developer junk hides.</h2>
+        <p>Generic cleaners clear browser caches. SpaceSaver knows your toolchain: which folders regenerate, which are expensive to rebuild, and which belong to a project you touched this morning.</p>
+      </div>
+      <div class="cat-grid">
+        <article class="cat reveal" style="--c:#5c8cfa">
+          <span class="cat-icon"><i data-lucide="package"></i></span>
+          <h3>Project Artifacts</h3>
+          <p>45 rules, from <code>node_modules</code>, <code>.next</code> and <code>target</code> to <code>.venv</code>, <code>Pods</code> and <code>.gradle</code>. Each one only counts when its manifest sits next to it, and projects with recent commits are held back.</p>
+        </article>
+        <article class="cat reveal" style="--c:#339ef2">
+          <span class="cat-icon"><i data-lucide="hammer"></i></span>
+          <h3>Xcode &amp; Simulators</h3>
+          <p>DerivedData, device support per iOS version, previews and archives. Simulators whose runtime is gone are marked safe.</p>
+        </article>
+        <article class="cat reveal" style="--c:#2194cc">
+          <span class="cat-icon"><i data-lucide="container"></i></span>
+          <h3>Docker</h3>
+          <p>Asks the engine directly for build cache, stopped containers, unused images and volumes. Works with Docker Desktop, OrbStack and colima.</p>
+        </article>
+        <article class="cat reveal" style="--c:#8c6bf2">
+          <span class="cat-icon"><i data-lucide="archive"></i></span>
+          <h3>Package Caches</h3>
+          <p>npm, pnpm, Yarn, Bun, pip, uv, Poetry, Cargo, Go, Gradle, Maven, Homebrew, CocoaPods, SwiftPM, Playwright and more.</p>
+        </article>
+        <article class="cat reveal" style="--c:#6b66d9">
+          <span class="cat-icon"><i data-lucide="code"></i></span>
+          <h3>IDEs &amp; Editors</h3>
+          <p>Caches for VS Code, Cursor, Windsurf, Zed and JetBrains, plus workspace storage left behind by projects you've deleted.</p>
+        </article>
+        <article class="cat reveal" style="--c:#d961bf">
+          <span class="cat-icon"><i data-lucide="brain"></i></span>
+          <h3>AI Models</h3>
+          <p>Hugging Face and Ollama sized per model, with shared blobs counted once. LM Studio, MLX, Whisper and llama.cpp are covered too.</p>
+        </article>
+        <article class="cat reveal" style="--c:#ed738c">
+          <span class="cat-icon"><i data-lucide="messages-square"></i></span>
+          <h3>AI Session Logs</h3>
+          <p>Claude Code, Codex, Copilot, Cline and Cursor transcripts. You can audit them for leaked API keys, and they go to a verified archive before the Trash.</p>
+        </article>
+        <article class="cat reveal" style="--c:#fa9e33">
+          <span class="cat-icon"><i data-lucide="sparkles"></i></span>
+          <h3>System Junk &amp; Downloads</h3>
+          <p>App caches (skipped while the app runs), logs, crash reports, installers for apps you already have, and archives you already extracted.</p>
+        </article>
+        <article class="cat reveal" style="--c:#e6804d">
+          <span class="cat-icon"><i data-lucide="copy"></i></span>
+          <h3>Large Files &amp; Duplicates</h3>
+          <p>Duplicates are checked by size, then a partial hash, then a full SHA-256. Hard links and iCloud placeholders are skipped.</p>
+        </article>
+      </div>
+
+      <div class="bento">
+        <article class="b-card b-map reveal">
+          <div class="b-text">
+            <span class="eyebrow">Storage Map</span>
+            <h3>See where it went, and what grew.</h3>
+            <p>A treemap of your home folder, any folder or the whole disk, with firmlinks handled so nothing is counted twice. Each scan is saved, so you can see which folders grew since the last one.</p>
+          </div>
+          <div class="treemap" aria-hidden="true">
+            <div class="tm" style="--c:#4f82ff;grid-area:a"><b>Library</b><span>148 GB</span></div>
+            <div class="tm" style="--c:#8f5efa;grid-area:b"><b>Developer</b><span>96 GB</span></div>
+            <div class="tm" style="--c:#d961bf;grid-area:c"><b>.cache</b><span>41 GB</span></div>
+            <div class="tm" style="--c:#12a1c7;grid-area:d"><b>.ollama</b><span>28 GB</span></div>
+            <div class="tm" style="--c:#fa9e33;grid-area:e"><b>Downloads</b><span>19 GB</span></div>
+            <div class="tm" style="--c:#21cc8f;grid-area:f"><b>.npm</b><span>9 GB</span></div>
+            <div class="tm grow" style="--c:#339ef2;grid-area:h"><b>DerivedData</b><span>+3.4 GB</span></div>
+          </div>
+        </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#21cc8f"><i data-lucide="undo-2"></i></span>
+          <h3>Undo for every file</h3>
+          <p>Every cleanup, whether from the app, the CLI, the scheduler or an approved agent, is logged. One click puts files back where they were.</p>
+          <div class="act-list">
+            <div><i data-lucide="check"></i>Quick Clean · 42.2 GB<span class="restore">Restore</span></div>
+            <div><i data-lucide="check"></i>Xcode DerivedData · 9.4 GB<span class="restore">Restore</span></div>
+          </div>
+        </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#4f82ff"><i data-lucide="calendar-clock"></i></span>
+          <h3>Cleans on a schedule</h3>
+          <p>A small LaunchAgent runs daily or weekly, even with the app closed. It skips when you're on battery, only touches Safe items, and can wait until free space drops below a limit you set.</p>
+        </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#8f5efa"><i data-lucide="panel-top"></i></span>
+          <h3>Lives in your menu bar</h3>
+          <p>Free space at a glance, Quick Clean with a two-step confirm, and pending agent requests, without opening a window.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ISLAND -->
+  <section class="section island-sec" id="island">
+    <div class="wrap island-grid">
+      <div class="island-copy reveal">
+        <span class="eyebrow">Dynamic Island</span>
+        <h2>Your notch, put to work.</h2>
+        <p>A black island grows out of the MacBook notch. On Macs without a notch, it sits at the top of the menu bar. It needs no Accessibility or Screen Recording permission.</p>
+        <div class="modes" role="tablist" aria-label="Island modes">
+          <button class="mode" role="tab" data-mode="live" aria-selected="true">
+            <i data-lucide="activity"></i>
+            <span><b>Live</b>Free space, scan progress or cleanup count, shown beside the notch.</span>
+          </button>
+          <button class="mode" role="tab" data-mode="peek" aria-selected="false">
+            <i data-lucide="bell-ring"></i>
+            <span><b>Peek</b>Drops down for a few seconds when a scan finishes, a cleanup completes, or an agent asks for space.</span>
+          </button>
+          <button class="mode" role="tab" data-mode="expanded" aria-selected="false">
+            <i data-lucide="maximize-2"></i>
+            <span><b>Expanded</b>Hover to get a disk ring and Quick Clean, Scan and Open buttons. Try Quick Clean in the demo.</span>
+          </button>
+        </div>
+      </div>
+      <div class="island-demo reveal">
+        <div class="scaler" data-w="620" data-h="300">
+          <div class="scaled bezel">
+            <div class="bezel-screen">
+              <div class="menubar small"><div class="mb-left"><span class="mb-logo"></span><b>Finder</b><span>File</span><span>Edit</span></div><div class="mb-right"><i data-lucide="wifi"></i><span>2:41 PM</span></div></div>
+              <div class="island-host" data-island="demo"></div>
+            </div>
+          </div>
+        </div>
+        <p class="caption">Demo: pick a mode, or hover over or tap the island.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAKE ROOM -->
+  <section class="section" id="make-room">
+    <div class="wrap room-grid">
+      <div class="room-copy reveal">
+        <span class="eyebrow">Make room for X GB</span>
+        <h2>Need 20 GB for an Xcode update? Ask for exactly that.</h2>
+        <p>Tell SpaceSaver how much you need. It picks the least risky items that cover it: Safe items first, then Review, and never anything marked Caution. Agents can ask the same question over MCP before a big download.</p>
+      </div>
+      <div class="planner reveal">
+        <div class="planner-head">
+          <label for="roomSlider">Make room for</label>
+          <output id="roomValue">20 GB</output>
+        </div>
+        <input type="range" id="roomSlider" min="5" max="80" step="1" value="20" aria-describedby="roomSummary">
+        <div class="cover"><span id="roomCover"></span></div>
+        <p class="room-summary" id="roomSummary"></p>
+        <ul class="plan-list" id="roomList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAFETY -->
+  <section class="section" id="safety">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Safety model</span>
+        <h2>Built not to break your Mac.</h2>
+        <p>Cleaners earn trust slowly and lose it quickly, so every removal from every entry point goes through the same checks.</p>
+      </div>
+      <div class="safety-grid">
+        <div class="safe-card reveal"><span class="num">1</span><h3>Scans only read</h3><p>Nothing changes until you confirm in a review sheet that separates undoable moves from permanent actions.</p></div>
+        <div class="safe-card reveal"><span class="num">2</span><h3>Three risk levels</h3><p><span class="risk safe">Safe</span> regenerates by itself, <span class="risk review">Review</span> is costly to rebuild, and <span class="risk caution">Caution</span> may be personal. Automatic cleaning only ever touches Safe.</p></div>
+        <div class="safe-card reveal"><span class="num">3</span><h3>Live guards</h3><p>Caches of running apps are skipped, and projects with recent commits or edits are held back.</p></div>
+        <div class="safe-card reveal"><span class="num">4</span><h3>Hard limits</h3><p>It refuses system folders, your home's top-level folders, <code>~/.ssh</code>, <code>~/.aws</code>, keychains, Mail, iCloud Drive, anything inside <code>.git</code>, and symlink tricks.</p></div>
+        <div class="safe-card reveal"><span class="num">5</span><h3>Trash first</h3><p>Files go to the Trash and can be restored from Activity for 7 days (configurable). SpaceSaver only ever purges what it put there.</p></div>
+        <div class="safe-card reveal"><span class="num">6</span><h3>Honest numbers</h3><p>It reports allocated size (it matches <code>du</code>), counts hard links once, and tells you moved-to-Trash bytes aren't free until you empty it.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEVELOPERS -->
+  <section class="section" id="developers">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">For your terminal and your agents</span>
+        <h2>A CLI and an MCP server, built in.</h2>
+        <p>The <code>spacesaver</code> command ships inside the app and shares its settings, history and undo log.</p>
+      </div>
+      <div class="dev-grid">
+        <div class="terminal reveal">
+          <div class="term-bar"><span></span><span></span><span></span><b>zsh</b></div>
+<pre class="term"><span class="p">$</span> spacesaver status
+<b>Macintosh HD</b> <span class="d">(APFS)</span>
+  Used       475.80 GB of 494.38 GB
+  Free       <b>18.58 GB</b>
+  Purgeable  2.31 GB  <span class="d">(macOS frees this on demand)</span>
+
+  Last scan  2 minutes ago: <b>42.15 GB</b> safe to clean
+
+<span class="p">$</span> spacesaver scan -c packageCaches
+
+<b>Package Caches</b><span class="d">  24.80 GB</span>
+  <span class="g">●</span>    6.80 GB  <span class="g">safe   </span>  npm cache          <span class="d">~/.npm/_cacache</span>
+  <span class="g">●</span>    4.20 GB  <span class="g">safe   </span>  pnpm store         <span class="d">~/Library/pnpm/store</span>
+  <span class="g">●</span>    3.10 GB  <span class="g">safe   </span>  Homebrew downloads <span class="d">~/Library/Caches/Homebrew</span>
+
+<span class="p">$</span> spacesaver preflight 20 <span class="d"># exit code 2 if it won't fit</span>
+<span class="p">$</span> spacesaver clean <span class="d"># dry run unless --yes</span><span class="cursor"></span></pre>
+        </div>
+        <div class="mcp reveal">
+          <span class="b-icon" style="--c:#8f5efa"><i data-lucide="bot"></i></span>
+          <h3>Let Claude Code, Codex or Cursor ask before they fill your disk</h3>
+          <p>The MCP server lets agents check free space, run a preflight before big downloads, and <em>propose</em> a cleanup. <b>Agents can't delete anything.</b> Proposals wait in Agent Requests until you approve them, and expire after 24 hours.</p>
+          <div class="code-copy">
+            <code id="mcpCmd">claude mcp add spacesaver -- /Applications/SpaceSaver.app/Contents/Helpers/spacesaver mcp</code>
+            <button class="copy" data-copy="#mcpCmd" aria-label="Copy command"><i data-lucide="copy"></i></button>
+          </div>
+          <div class="tool-chips">
+            <span>get_disk_status</span><span>preflight_check</span><span>list_reclaim_candidates</span><span>explain_path</span><span>propose_cleanup</span><span>get_plan_status</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section" id="install">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Install</span>
+        <h2>Up and running in a minute.</h2>
+      </div>
+      <ol class="steps">
+        <li class="step reveal">
+          <span class="step-n">1</span>
+          <h3>Download</h3>
+          <p>Get <b>SpaceSaver.dmg</b> (<span data-size>3.2 MB</span>) and open it.</p>
+          <a class="btn btn-primary btn-sm" data-download href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg"><i data-lucide="download"></i><span>Download</span></a>
+        </li>
+        <li class="step reveal">
+          <span class="step-n">2</span>
+          <h3>Drag to Applications</h3>
+          <p>Drag the SpaceSaver icon onto the Applications folder in the window that opens.</p>
+        </li>
+        <li class="step reveal">
+          <span class="step-n">3</span>
+          <h3>Allow the first launch</h3>
+          <p>SpaceSaver isn't notarized by Apple yet, so macOS blocks the first launch. Open it once, then go to <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b>.</p>
+          <details class="alt">
+            <summary>Prefer Terminal?</summary>
+            <div class="code-copy small">
+              <code id="xattrCmd">xattr -dr com.apple.quarantine /Applications/SpaceSaver.app</code>
+              <button class="copy" data-copy="#xattrCmd" aria-label="Copy command"><i data-lucide="copy"></i></button>
+            </div>
+          </details>
+        </li>
+        <li class="step reveal">
+          <span class="step-n">4</span>
+          <h3>Grant Full Disk Access</h3>
+          <p>Optional, for a complete scan. SpaceSaver prompts you and links to <b>Privacy &amp; Security › Full Disk Access</b>.</p>
+        </li>
+      </ol>
+      <p class="checksum" data-sha-row hidden>SHA-256 of the latest DMG: <code data-sha></code></p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq">
+    <div class="wrap faq-wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">FAQ</span>
+        <h2>Questions, answered.</h2>
+      </div>
+      <div class="faq">
+        <details class="reveal" open>
+          <summary>Is it really free?<i data-lucide="chevron-down"></i></summary>
+          <p>Yes. Every feature is included, with no account, licence key, cleanup cap or telemetry. The only network request SpaceSaver can make is to a local Ollama model, if you turn on AI explanations.</p>
+        </details>
+        <details class="reveal">
+          <summary>Could it delete something I need?<i data-lucide="chevron-down"></i></summary>
+          <p>Scans only read. Files go to the Trash, and you can restore them from Activity until the retention window ends. Docker prunes can't be undone, so the review sheet lists them separately before you confirm. Folders that hold personal data or credentials, anything inside a Git repository's <code>.git</code>, and caches of apps that are running are refused outright.</p>
+        </details>
+        <details class="reveal">
+          <summary>Why does macOS say it can't check the app for malware?<i data-lucide="chevron-down"></i></summary>
+          <p>Apps distributed outside the App Store need Apple notarization to skip that warning, and SpaceSaver isn't notarized yet. Step 3 of the install shows how to allow it once. You can also read the source and build it yourself with <code>scripts/build-app.sh</code>.</p>
+        </details>
+        <details class="reveal">
+          <summary>Does it run on Intel Macs?<i data-lucide="chevron-down"></i></summary>
+          <p>Not yet. The download is built for Apple silicon (M1 or later) running macOS 14 Sonoma or newer.</p>
+        </details>
+        <details class="reveal">
+          <summary>What does the Dynamic Island need?<i data-lucide="chevron-down"></i></summary>
+          <p>Nothing extra. It works best on a MacBook with a notch; on other Macs it sits at the top of the menu bar. You can turn it off, or stop it expanding on hover, in Settings › General.</p>
+        </details>
+        <details class="reveal">
+          <summary>How do I uninstall it?<i data-lucide="chevron-down"></i></summary>
+          <p>If you turned on scheduled cleaning, turn it off in Settings › Schedule first. Then drag SpaceSaver to the Trash and delete the <code>~/.spacesaver</code> folder, which holds its settings and history.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <div class="wrap final-inner reveal">
+      <img src="assets/icon-256.png" alt="" width="96" height="96" class="final-icon">
+      <h2>Your disk has room. It's just full of caches.</h2>
+      <p>Scan once and see how much of it can go safely. Nothing changes until you say so.</p>
+      <a class="btn btn-primary btn-lg shimmer" data-download href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg"><i data-lucide="download"></i><span>Download SpaceSaver</span></a>
+      <p class="meta"><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14+</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap foot-inner">
+    <div class="brand"><img src="assets/icon-64.png" alt="" width="22" height="22"><span>SpaceSaver</span></div>
+    <p>Local-first disk cleanup for developers. Runs entirely on your Mac.</p>
+    <nav aria-label="Footer">
+      <a href="https://github.com/rushabh05/SpaceSaver">Source</a>
+      <a href="https://github.com/rushabh05/SpaceSaver/releases">Releases</a>
+      <a href="https://github.com/rushabh05/SpaceSaver/issues">Report an issue</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

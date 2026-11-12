@@ -131,6 +131,22 @@ privacy grants such as Full Disk Access after each rebuild, and other Macs will 
 Gatekeeper warning. To distribute it, sign with a Developer ID
 (`SIGN_IDENTITY="Developer ID Application: …" scripts/build-app.sh --dmg`) and notarize.
 
+## Website and releases
+
+`docs/` is a static download site (plain HTML, CSS and JS, no build step) meant for GitHub
+Pages: Settings › Pages › Deploy from a branch › `main` / `docs`. Its app screens are HTML
+mock-ups with demo data, so they never show anyone's real disk.
+
+Every Download button points at `releases/latest/download/SpaceSaver.dmg`, and the page reads
+the version, size and SHA-256 of the latest release from the GitHub API. To publish a new
+version, bump `VERSION` in `scripts/build-app.sh`, then run:
+
+```bash
+scripts/release.sh
+```
+
+To preview the site locally, run `python3 -m http.server -d docs` and open http://localhost:8000.
+
 ## Command line
 
 The CLI ships inside the app at `SpaceSaver.app/Contents/Helpers/spacesaver` and shares
@@ -193,7 +209,8 @@ Sources/SpaceSaverCore/    engine (no UI): scanning, rules, analyzers, safety, c
 Sources/SpaceSaverApp/     SwiftUI app + menu bar
 Sources/spacesaver/        CLI
 Tests/                     Swift Testing suite
-scripts/                   build-app.sh, test.sh, make-icon.swift
+scripts/                   build-app.sh, release.sh, test.sh, make-icon.swift
+docs/                      download website (GitHub Pages)
 ```
 
 `SPACESAVER_SNAPSHOT=/tmp/shots build/SpaceSaver.app/Contents/MacOS/SpaceSaver` renders each
