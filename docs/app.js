@@ -5,7 +5,7 @@
   const REPO = 'rushabh05/SpaceSaver';
   // Visit counting: sign up at https://www.goatcounter.com, then put your site code here
   // (for "spacesaver.goatcounter.com" it's 'spacesaver'). Empty means no analytics at all.
-  const GOATCOUNTER_CODE = '';
+  const GOATCOUNTER_CODE = 'rushabh05';
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
