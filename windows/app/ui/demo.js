@@ -126,7 +126,7 @@ const DemoBackend = (() => {
           '3. Compact the file in an elevated PowerShell (needs the Hyper-V module):\n   Optimize-VHD -Path "' + docker + '" -Mode Full',
         commands: ['docker system prune', 'wsl --shutdown', 'Optimize-VHD -Path "' + docker + '" -Mode Full'] },
       explanation: "Docker Desktop's virtual disk. SpaceSaver never deletes it: that would wipe every image, container and volume.",
-      regenerate: 'Nothing is deleted. Compacting keeps all your Linux files and gives back the unused space.' }),
+      regenerate: 'Nothing is deleted. Compacting keeps your images, containers and volumes and gives back the unused space.' }),
 
     item('systemJunk', 'Old temporary files', HOME + '\\AppData\\Local\\Temp\\setup-4f2a', 2.3 * GB, 'safe', {
       subtitle: '~\\AppData\\Local\\Temp \u00b7 214 entries untouched for 7+ days', tags: ['214 entries'],

@@ -116,6 +116,14 @@ fn main() -> ExitCode {
     }
 }
 
+fn plural(n: usize, one: &str) -> String {
+    if n == 1 {
+        format!("1 {one}")
+    } else {
+        format!("{n} {one}s")
+    }
+}
+
 fn percent(part: u64, whole: u64) -> u64 {
     if whole == 0 {
         0
@@ -170,7 +178,7 @@ fn status(flags: &Flags) -> Result<(), CliError> {
         ),
         None => println!("Last scan: never (run `spacesaver scan`)"),
     }
-    println!("Activity: {} cleanups, {} restorable", entries.len(), restorable);
+    println!("Activity: {}, {} restorable", plural(entries.len(), "cleanup"), restorable);
     println!("Data folder: {}", store.dir().display());
     Ok(())
 }
@@ -311,9 +319,9 @@ fn print_report(report: &CleanReport, flags: &Flags) {
     }
     if report.dry_run {
         println!("Dry run: nothing was moved.\n");
-        println!("Would move {} items ({}) to the Recycle Bin:", report.items.len(), format_bytes(report.bytes));
+        println!("Would move {} ({}) to the Recycle Bin:", plural(report.items.len(), "item"), format_bytes(report.bytes));
     } else {
-        println!("Moved {} items ({}) to the Recycle Bin:", report.items.len(), format_bytes(report.bytes));
+        println!("Moved {} ({}) to the Recycle Bin:", plural(report.items.len(), "item"), format_bytes(report.bytes));
     }
     for item in &report.items {
         println!("  {:>9}  {}", format_bytes(item.size), item.title);
@@ -363,14 +371,14 @@ fn activity(flags: &Flags) -> Result<(), CliError> {
     for e in &entries {
         let status = format!("{:?}", e.status);
         println!(
-            "{:<9} {:<10} {:<18} {:>9}  {} ({}, {} paths)",
+            "{:<9} {:<10} {:<18} {:>9}  {} ({}, {})",
             e.id,
             ago(now, e.date),
             status,
             format_bytes(e.bytes),
             e.title,
             e.source,
-            e.records.len()
+            plural(e.records.len(), "path")
         );
     }
     println!("\nRestore with: spacesaver restore <id>");
@@ -387,7 +395,12 @@ fn restore(flags: &Flags) -> Result<(), CliError> {
     if flags.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
-        println!("Restored {} of {} paths from \"{}\".", report.restored, report.entry.records.len(), report.entry.title);
+        println!(
+            "Restored {} of {} from \"{}\".",
+            report.restored,
+            plural(report.entry.records.len(), "path"),
+            report.entry.title
+        );
         for e in &report.errors {
             println!("  {e}");
         }

@@ -29,7 +29,9 @@ jobs:
         shell: pwsh
         working-directory: windows
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -59,6 +61,13 @@ jobs:
           # Real package-manager caches in their default Windows locations.
           npm cache add typescript@5.6.3 --cache "$env:LOCALAPPDATA\npm-cache"
           python -m pip download --no-deps --only-binary=:all: -d "$env:RUNNER_TEMP\pipdl" numpy
+          $nuget = Join-Path $env:RUNNER_TEMP 'nugetsmoke'
+          dotnet new classlib -o $nuget --force | Out-Null
+          dotnet add $nuget package Newtonsoft.Json --version 13.0.3 | Out-Null
+          # Where the tools themselves say their caches are, to check SpaceSaver's paths.
+          'pip cache dir:  ' + (python -m pip cache dir)
+          dotnet nuget locals all --list
+          "NUGET_PACKAGES: $env:NUGET_PACKAGES"
           exit 0
 
       - name: CLI smoke test
@@ -87,6 +96,9 @@ jobs:
 
           $caches = @($scan.items | Where-Object { $_.category -eq 'packageCaches' })
           if ($caches.Count -lt 1) { throw 'No package caches found' }
+          foreach ($id in 'pkg.npm', 'pkg.pip', 'pkg.nuget.http') {
+            if (-not ($scan.items | Where-Object { $_.id -eq $id })) { throw "Expected $id in the scan" }
+          }
           $old = @($scan.items | Where-Object { $_.paths[0] -like '*spacesaver-smoke\old-app\node_modules' })
           $new = @($scan.items | Where-Object { $_.paths[0] -like '*spacesaver-smoke\new-app\node_modules' })
           if ($old.Count -ne 1 -or -not $old[0].recommended) { throw 'The dormant smoke project should be recommended' }
@@ -114,7 +126,7 @@ jobs:
           if (-not (Test-Path (Join-Path $nm 'left-pad\blob.bin'))) { throw 'Restore did not bring node_modules back' }
           & $exe status
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: spacesaver-cli
           path: windows/target/release/spacesaver.exe
@@ -128,7 +140,9 @@ jobs:
         shell: pwsh
         working-directory: windows/app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -136,9 +150,9 @@ jobs:
         with:
           workspaces: windows -> target
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Generate icons from docs/assets/icon-512.png
         run: npx --yes @tauri-apps/cli@2 icon ../../docs/assets/icon-512.png -o icons
@@ -149,8 +163,34 @@ jobs:
       - name: List bundle
         run: Get-ChildItem ..\target\release\bundle -Recurse -File | ForEach-Object { '{0,12:N0}  {1}' -f $_.Length, $_.FullName }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: SpaceSaver-windows-setup
           path: windows/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      # Launch the built app on the runner's desktop and screenshot it. It scans the runner on
+      # first launch. Best effort: a runner without an interactive desktop shouldn't fail the build.
+      - name: Launch the app and take a screenshot
+        continue-on-error: true
+        run: |
+          $exe = Get-ChildItem ..\target\release -Filter *.exe -File | Select-Object -First 1
+          "Launching $($exe.FullName)"
+          $app = Start-Process $exe.FullName -PassThru
+          Start-Sleep -Seconds 20
+          if ($app.HasExited) { throw "The app exited with code $($app.ExitCode)" }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          New-Item -ItemType Directory -Force -Path ..\target\screenshots | Out-Null
+          $bmp.Save((Join-Path (Resolve-Path ..\target\screenshots) 'app.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+          "Screen $($bounds.Width)x$($bounds.Height); app still running: $(-not $app.HasExited)"
+          Stop-Process -Id $app.Id -Force
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-screenshot
+          path: windows/target/screenshots/*.png
+          if-no-files-found: warn

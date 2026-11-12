@@ -119,7 +119,12 @@ fn make_item(env: &ScanEnv, disk: &Disk, size: u64, modified: i64) -> CleanupIte
         risk: Risk::Review,
         method: Method::Manual { instructions, commands },
         explanation,
-        regenerate: "Nothing is deleted. Compacting keeps all your Linux files and gives back the unused space.".to_string(),
+        regenerate: if docker {
+            "Nothing is deleted. Compacting keeps your images, containers and volumes and gives back the unused space."
+        } else {
+            "Nothing is deleted. Compacting keeps all your Linux files and gives back the unused space."
+        }
+        .to_string(),
         tags,
         recommended: false,
         blocked_reason: None,

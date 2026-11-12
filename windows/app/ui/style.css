@@ -174,7 +174,7 @@ button { font: inherit; color: inherit; }
 .side-card .w-btn { margin-top: auto; align-self: flex-start; }
 
 .cat-list { margin-top: 14px; padding: 6px; }
-.cat-row { display: grid; grid-template-columns: 32px 1fr auto auto 16px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 0; background: none; width: 100%; text-align: left; cursor: pointer; }
+.cat-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto 16px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 0; background: none; width: 100%; text-align: left; cursor: pointer; }
 .cat-row:hover { background: var(--hover); }
 .cat-row .tile { width: 32px; height: 32px; border-radius: 9px; font-size: 16px; }
 .cat-row b { display: block; font-size: 13.5px; }
@@ -227,7 +227,7 @@ button { font: inherit; color: inherit; }
 .steps summary::-webkit-details-marker { display: none; }
 .steps summary .chev-i { transition: transform .2s var(--ease); color: var(--ink-3); }
 .steps[open] summary .chev-i { transform: rotate(90deg); }
-.steps pre { margin: 0; padding: 0 12px 10px; white-space: pre-wrap; font: 12px/1.55 var(--font); color: var(--ink-2); }
+.steps pre { margin: 0; padding: 0 12px 10px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 var(--font); color: var(--ink-2); }
 .cmds { display: flex; flex-direction: column; gap: 6px; padding: 0 12px 12px; }
 .cmd { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 12px; border-radius: 9px; background: #0c0d12; color: #d6d9e6; border: 1px solid rgba(255, 255, 255, .08); }
 .cmd code { flex: 1; min-width: 0; font: 12px/1.4 var(--mono); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -312,7 +312,7 @@ button { font: inherit; color: inherit; }
   .lg-row .bar { display: none; }
   .sm-row { grid-template-columns: 16px 1fr 64px; }
   .sm-row .bar { display: none; }
-  .cat-row { grid-template-columns: 32px 1fr auto; }
+  .cat-row { grid-template-columns: 32px minmax(0, 1fr) auto; }
   .cat-row .rec, .cat-row .chev { display: none; }
   .cat-head { grid-template-columns: 44px 1fr; }
   .cat-total { grid-column: 1 / -1; text-align: left; }
