@@ -117,7 +117,7 @@ jobs:
 
           # Real run on project artifacts only, then restore from the Recycle Bin.
           $report = (& $exe clean --yes -c projects --json) -join "`n" | ConvertFrom-Json
-          "Moved $($report.items.Count) items, $([math]::Round($report.bytes / 1MB, 1)) MB. Errors: $($report.errors -join '; ')"
+          "Items moved: $($report.items.Count), $([math]::Round($report.bytes / 1MB, 1)) MB. Errors: $($report.errors -join '; ')"
           if (Test-Path $nm) { throw 'node_modules was not moved to the Recycle Bin' }
           if (-not $report.entry) { throw 'No activity entry was written' }
           & $exe activity

@@ -79,9 +79,10 @@ use another folder).
 ## Build
 
 Builds and tests run on GitHub Actions (`.github/workflows/windows.yml`, `windows-latest`): core
-tests, a release CLI, a smoke test that scans the runner and cleans and restores a dormant
-project through the real Recycle Bin, and the Tauri app with its NSIS installer. Both the
-installer and `spacesaver.exe` are uploaded as workflow artifacts.
+tests, a release CLI, a smoke test that seeds real npm, pip and NuGet caches, scans the runner
+and cleans and restores a dormant project through the real Recycle Bin, and the Tauri app with
+its NSIS installer. The app job also launches the built app on the runner's desktop and uploads
+a screenshot. The installer, `spacesaver.exe` and the screenshot are workflow artifacts.
 
 On a Windows machine with Rust (stable) and Node.js:
 
@@ -105,8 +106,13 @@ python3 -m http.server -d windows/app/ui 8000   # then open http://localhost:800
 
 ## Not done yet
 
-* The desktop app hasn't been seen running on Windows yet; CI builds it and the installer but
-  doesn't launch it. The UI has only been checked in a browser with demo data.
+* The desktop app has only been seen on Windows as CI's screenshot of the Overview after its
+  first scan. Clicking through a cleanup, Restore and Show in Explorer in the app hasn't been
+  tried on Windows (the same core code is covered by the tests and the CLI smoke test), and the
+  installer hasn't been run. Every screen was checked in a browser with demo data.
+* The per-user installer's default folder and the data folder are both
+  `%LOCALAPPDATA%\SpaceSaver`. They don't share any file names, but what the uninstaller does
+  to that folder hasn't been checked; one of them should move.
 * No code signing, so SmartScreen will warn about the installer. No auto-update, no release
   pipeline (CI artifacts only).
 * No `Cargo.lock` is committed yet; CI resolves the latest compatible crates.

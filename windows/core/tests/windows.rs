@@ -156,7 +156,7 @@ fn dormant_projects_are_recommended_active_ones_are_not() {
     let active = node_project(&code.join("new-site"), 0);
 
     // Root files are old, but the git reflog shows a commit 3 days ago: active.
-    let committed = node_project(&code.join("committed"), 200);
+    node_project(&code.join("committed"), 200);
     let ts = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() - 3 * 86_400;
     write(&code.join(r"committed\.git\HEAD"), 0);
     let reflog = format!("{z} {o} Dev <dev@example.com> {ts} +0000\tcommit: work\n", z = "0".repeat(40), o = "1".repeat(40));
