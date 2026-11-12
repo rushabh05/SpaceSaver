@@ -5,18 +5,22 @@ A native macOS disk cleaner for developers. It finds the gigabytes that macOS lu
 package-manager caches, local AI models, AI-agent transcripts) and removes them safely, with
 undo.
 
-It covers the same ground as [SpaceWise](https://www.spacewisemac.in/), rebuilt from scratch
-in Swift with some additions. Everything runs on your Mac with no account, licence or telemetry.
+Everything runs on your Mac with no account, licence or telemetry, and every feature is included.
 
-| | SpaceWise (from its site) | SpaceSaver |
-|---|---|---|
-| Stack | Tauri shell, ~37 MB DMG | Native SwiftUI + Swift, **~3 MB DMG / 7.5 MB app** |
-| Scanner | Not described | Parallel `getattrlistbulk` walker, allocated-size accurate (matches `du`), hard links counted once |
-| Price | Free tier capped at 1.5 GB cleanup; Pro $3.99–7.99 | Everything included |
-| MCP server | Node `npx spacesaver-mcp`, Pro only | Built into the bundled CLI, no Node needed |
-| Undo | Trash + 7-day buffer | Trash + one-click restore from Activity; auto-purge after N days (configurable) |
-| Honesty about Trash | — | Tells you moved-to-Trash bytes aren't free until emptied, offers "Free now" |
-| Extras | — | CLI, "what grew since last scan", free-space history chart, "make room for X GB" planner, orphaned editor workspace detection, Ollama per-model sizing, custom rules, LaunchAgent scheduling that works with the app closed |
+**Download:** [rushabh05.github.io/SpaceSaver](https://rushabh05.github.io/SpaceSaver/) (Apple
+silicon, macOS 14 or later).
+
+**Highlights**
+- Native SwiftUI and Swift: a ~3 MB DMG and a 9 MB app.
+- A parallel `getattrlistbulk` scanner that reports allocated size (it matches `du`) and counts
+  hard links once.
+- An MCP server built into the bundled CLI, with no Node required.
+- Trash first, with one-click restore from Activity and automatic purge after a configurable
+  number of days. It tells you that bytes moved to the Trash aren't free until it's emptied, and
+  offers "Free now".
+- A CLI, "what grew since last scan", a free-space history chart, a "make room for X GB"
+  planner, orphaned editor workspace detection, per-model Ollama sizing, custom rules, and
+  LaunchAgent scheduling that works with the app closed.
 
 ## Features
 
@@ -218,7 +222,7 @@ screen to PNG and quits. It's a development aid that needs no Screen Recording p
 
 ## Not included
 
-- A Windows version (SpaceWise has one).
+- A Windows version.
 - Intel builds. They should compile with `swift build --arch x86_64`, but haven't been tested.
 - Deleting Time Machine local snapshots. SpaceSaver shows how many there are; macOS
   thins them automatically, or run `tmutil thinlocalsnapshots / 999999999999 4`.
