@@ -5,7 +5,8 @@ A native macOS disk cleaner for developers. It finds the gigabytes that macOS lu
 package-manager caches, local AI models, AI-agent transcripts) and removes them safely, with
 undo.
 
-Everything runs on your Mac with no account, licence or telemetry, and every feature is included.
+It's free and open source under the MIT licence. Everything runs on your Mac with no account,
+licence key or telemetry, and every feature is included.
 
 **Download:** [rushabh05.github.io/SpaceSaver](https://rushabh05.github.io/SpaceSaver/) (Apple
 silicon, macOS 14 or later).
@@ -226,3 +227,7 @@ screen to PNG and quits. It's a development aid that needs no Screen Recording p
 - Intel builds. They should compile with `swift build --arch x86_64`, but haven't been tested.
 - Deleting Time Machine local snapshots. SpaceSaver shows how many there are; macOS
   thins them automatically, or run `tmutil thinlocalsnapshots / 999999999999 4`.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

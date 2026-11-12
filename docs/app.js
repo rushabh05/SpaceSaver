@@ -3,6 +3,9 @@
   'use strict';
 
   const REPO = 'rushabh05/SpaceSaver';
+  // Visit counting: sign up at https://www.goatcounter.com, then put your site code here
+  // (for "spacesaver.goatcounter.com" it's 'spacesaver'). Empty means no analytics at all.
+  const GOATCOUNTER_CODE = '';
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -344,6 +347,19 @@
       }
     })
     .catch(() => { /* keep the static fallbacks */ });
+
+  // ---------- Analytics (cookieless; only when GOATCOUNTER_CODE is set) ----------
+  if (GOATCOUNTER_CODE) {
+    const gc = document.createElement('script');
+    gc.async = true;
+    gc.src = 'https://gc.zgo.at/count.js';
+    gc.dataset.goatcounter = `https://${GOATCOUNTER_CODE}.goatcounter.com/count`;
+    document.head.appendChild(gc);
+    const note = document.createElement('p');
+    note.className = 'privacy-note';
+    note.textContent = 'This site counts visits with GoatCounter: no cookies, no personal data.';
+    $('.foot-inner').appendChild(note);
+  }
 
   // ---------- Icons ----------
   if (window.lucide) window.lucide.createIcons({ attrs: { 'aria-hidden': 'true' } });
