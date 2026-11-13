@@ -682,6 +682,8 @@ fn guard_resolves_short_names_in_the_last_component() {
     }
     if checked == 0 {
         eprintln!("8.3 short names are disabled on this volume; nothing to check");
+    } else {
+        eprintln!("checked {checked} paths spelled with 8.3 short names");
     }
 }
 

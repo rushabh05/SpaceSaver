@@ -40,7 +40,8 @@ jobs:
           workspaces: windows -> target
 
       - name: Core tests
-        run: cargo test -p spacesaver-core
+        # --show-output prints what passing tests report, such as whether 8.3 names were checked.
+        run: cargo test -p spacesaver-core -- --show-output
 
       - name: Build CLI (release)
         run: cargo build --release -p spacesaver-cli
