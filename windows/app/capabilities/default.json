@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "The main window may call SpaceSaver's commands and listen for progress events.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
