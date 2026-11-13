@@ -2,7 +2,11 @@ name: Windows
 
 on:
   push:
-    branches: [windows]
+    branches: [windows, main]
+    paths:
+      - "windows/**"
+      - "docs/assets/icon-512.png"
+      - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "windows/**"

@@ -257,7 +257,9 @@ screen to PNG and quits. It's a development aid that needs no Screen Recording p
 
 ## Not included
 
-- A Windows version.
+- A full Windows version. [`windows/`](windows/README.md) is a beta (Rust core, CLI and Tauri app) covering
+  developer caches, dormant build folders, old temp files and WSL/Docker disk images, with the
+  Recycle Bin and restore. It is built and tested on GitHub Actions; its installer is attached to releases.
 - Intel builds. They should compile with `swift build --arch x86_64`, but haven't been tested.
 - Deleting Time Machine local snapshots. SpaceSaver shows how many there are; macOS
   thins them automatically, or run `tmutil thinlocalsnapshots / 999999999999 4`.
