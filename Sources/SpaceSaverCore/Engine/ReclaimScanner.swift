@@ -43,6 +43,7 @@ public final class ReclaimScanner: @unchecked Sendable {
             evaluator.evaluate(RuleCatalog.rules(for: .aiModels), claimed: claimed) + OllamaAnalyzer(env: env).analyze()
         }
         add(.aiSessions) { AISessionAnalyzer(env: env, running: running).analyze() }
+        add(.agentWorktrees) { WorktreeAnalyzer(env: env).analyze() }
         add(.systemJunk) { evaluator.evaluate(RuleCatalog.rules(for: .systemJunk), claimed: claimed) }
         add(.appleDevices) { evaluator.evaluate(RuleCatalog.rules(for: .appleDevices), claimed: claimed) }
         add(.downloads) { DownloadsAnalyzer(env: env).analyze() }
@@ -77,7 +78,7 @@ public final class ReclaimScanner: @unchecked Sendable {
     /// Removes paths that appear in more than one item (keeping the more specific category), and
     /// items nested inside another item's folder.
     static func deduplicate(_ items: [CleanupItem]) -> [CleanupItem] {
-        let priority: [CleanupCategory] = [.projectArtifacts, .aiSessions, .aiModels, .xcode, .docker, .ideCaches,
+        let priority: [CleanupCategory] = [.agentWorktrees, .projectArtifacts, .aiSessions, .aiModels, .xcode, .docker, .ideCaches,
                                            .packageCaches, .appleDevices, .downloads, .leftovers, .custom, .systemJunk, .trash]
         let ordered = items.sorted {
             (priority.firstIndex(of: $0.category) ?? 99) < (priority.firstIndex(of: $1.category) ?? 99)

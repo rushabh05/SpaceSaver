@@ -46,6 +46,7 @@ struct AppsView: View {
     enum Sort: String, CaseIterable { case size = "Size", lastUsed = "Least recently used", name = "Name" }
 
     @Environment(AppModel.self) private var model
+    @Environment(\.contentWidth) private var width
     @State private var search = ""
     @State private var sort: Sort = .size
     @State private var selectedID: String?
@@ -77,24 +78,18 @@ struct AppsView: View {
                 EmptyStateView(symbol: "xmark.bin", title: "No apps found",
                                message: "SpaceSaver looks in /Applications and ~/Applications. Apple's own apps aren't listed.",
                                action: ("Look Again", { model.loadApps(force: true) }))
+            } else if width < 720 {
+                // Narrow window: the details sit under the list.
+                VStack(spacing: 0) {
+                    list.frame(maxHeight: .infinity)
+                    Divider()
+                    detailPane.frame(height: 300)
+                }
             } else {
                 HStack(spacing: 0) {
-                    list.frame(minWidth: 360)
+                    list.frame(minWidth: 240)
                     Divider()
-                    Group {
-                        if let selected {
-                            AppDetail(app: selected).id(selected.id)
-                                .transition(.blurReplace)
-                        } else {
-                            VStack(spacing: 10) {
-                                Image(systemName: "hand.point.left").font(.largeTitle).foregroundStyle(.tertiary)
-                                Text("Choose an app to see what it keeps on your Mac.").foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                    .frame(width: 360)
-                    .animation(Theme.spring, value: selectedID)
+                    detailPane.frame(width: width < 960 ? 300 : 360)
                 }
             }
         }
@@ -107,29 +102,53 @@ struct AppsView: View {
         }
     }
 
+    private var detailPane: some View {
+                    Group {
+                        if let selected {
+                            AppDetail(app: selected).id(selected.id)
+                                .transition(.blurReplace)
+                        } else {
+                            VStack(spacing: 10) {
+                                Image(systemName: "hand.point.left").font(.largeTitle).foregroundStyle(.tertiary)
+                                Text("Choose an app to see what it keeps on your Mac.").foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .animation(Theme.spring, value: selectedID)
+    }
+
     private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            CategoryIcon(category: .apps, size: 46)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Apps").font(.system(size: 24, weight: .bold))
-                Text(summary).font(.callout).foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
+        AdaptiveStack(stacked: width < 820, spacing: 12, alignment: .center) {
+            HStack(spacing: 14) {
+                CategoryIcon(category: .apps, size: 46)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apps").font(.system(size: 24, weight: .bold))
+                    Text(summary).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                        .contentTransition(.numericText())
+                }
             }
-            Spacer()
+            if width >= 820 { Spacer(minLength: 0) }
+            headerControls
+        }
+        .padding(.horizontal, 24).padding(.vertical, 18)
+    }
+
+    private var headerControls: some View {
+        HStack(spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search apps", text: $search).textFieldStyle(.plain).frame(width: 150)
+                TextField("Search apps", text: $search).textFieldStyle(.plain).frame(minWidth: 90, maxWidth: 150)
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(Capsule().fill(Color.primary.opacity(0.06)))
             Picker("Sort", selection: $sort) {
                 ForEach(Sort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
-            .labelsHidden().frame(width: 170)
+            .labelsHidden().frame(minWidth: 120, maxWidth: 170)
             Button { model.loadApps(force: true) } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(IconButtonStyle()).help("Look again").disabled(model.appsLoading)
         }
-        .padding(.horizontal, 24).padding(.vertical, 18)
     }
 
     private var summary: String {

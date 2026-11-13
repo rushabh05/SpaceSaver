@@ -167,6 +167,7 @@ private extension FileNode {
 
 struct StorageMapView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.contentWidth) private var width
     @State private var hovered: FileNode?
     @State private var showChanges = false
     @State private var selectedChild: FileNode?
@@ -185,9 +186,9 @@ struct StorageMapView: View {
                         .id(current.id)
                         .transition(.asymmetric(insertion: .scale(scale: 0.94).combined(with: .opacity), removal: .opacity))
                         .padding(8)
-                        .frame(minWidth: 420)
+                        .frame(minWidth: width < 820 ? 220 : 420)
                         .contextMenu { nodeMenu(hovered) }
-                    childList(current).frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+                    childList(current).frame(minWidth: width < 820 ? 200 : 260, idealWidth: width < 820 ? 230 : 320, maxWidth: 420)
                 }
                 Divider()
                 statusBar(current)
@@ -221,19 +222,26 @@ struct StorageMapView: View {
             } else {
                 Button { model.startMapScan() } label: { Label("Rescan", systemImage: "arrow.clockwise") }
                     .buttonStyle(SoftButtonStyle())
+                    .fixedSize()
             }
             Spacer()
             if let date = model.previousSnapshotDate, !model.mapScanning {
                 Button {
                     showChanges = true
                 } label: {
-                    Label("Changes since \(date.formatted(date: .abbreviated, time: .omitted))", systemImage: "chart.line.uptrend.xyaxis")
+                    if width < 820 {
+                        Label("Changes", systemImage: "chart.line.uptrend.xyaxis")
+                    } else {
+                        Label("Changes since \(date.formatted(date: .abbreviated, time: .omitted))", systemImage: "chart.line.uptrend.xyaxis")
+                    }
                 }
+                .fixedSize()
                 .disabled(model.growth.isEmpty)
             }
             if let root = model.mapRoot, !model.mapScanning {
-                Text("\(ByteFormat.string(root.size)) · \(root.fileCount.formatted()) files · \(String(format: "%.1f", model.mapDuration))s")
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(width < 820 ? ByteFormat.string(root.size)
+                     : "\(ByteFormat.string(root.size)) · \(root.fileCount.formatted()) files · \(String(format: "%.1f", model.mapDuration))s")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)

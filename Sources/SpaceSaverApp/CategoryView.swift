@@ -13,53 +13,70 @@ struct CategoryView: View {
     @State private var search = ""
     @State private var focused: String?
     @State private var showInspector = true
+    @Environment(\.contentWidth) private var width
 
     var body: some View {
         let all = model.items(category)
         let visible = filtered(all)
-        VStack(spacing: 0) {
-            header(all)
-            Divider()
-            if model.scan == nil && !model.isScanning {
-                EmptyStateView(symbol: category.symbol, title: category.title, message: category.blurb,
-                               action: ("Scan", { model.startScan() }))
-            } else if all.isEmpty {
-                if model.isScanning && !model.scanFinished.contains(category) {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                        Text("Scanning \(category.title)…").foregroundStyle(.secondary)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    EmptyStateView(symbol: "checkmark.circle", title: "Nothing to clean here",
-                                   message: "SpaceSaver didn't find anything in \(category.title) worth removing.")
-                }
-            } else {
-                list(visible)
-                    .safeAreaInset(edge: .bottom) {
-                        actionBar(all)
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 14)
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                header(all)
+                Divider()
+                content(all: all, visible: visible)
+            }
+            .frame(minWidth: 0, maxWidth: .infinity)
+
+            // A plain side panel rather than .inspector: the system inspector hosts the screen in a
+            // nested split view that ignores the floating sidebar's inset on macOS 26.
+            if showInspector && roomForInspector {
+                Divider()
+                Group {
+                    if let id = focused, let item = all.first(where: { $0.id == id }) {
+                        ItemInspector(item: item)
+                    } else {
+                        EmptyStateView(symbol: "sidebar.right", title: "No selection",
+                                       message: "Select an item to see what it is and how to get it back.")
                     }
+                }
+                .frame(width: 320)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(Theme.spring, value: visible.map(\.id))
+        .animation(Theme.spring, value: showInspector && roomForInspector)
         .navigationTitle(category.title)
-        .inspector(isPresented: $showInspector) {
-            Group {
-                if let id = focused, let item = all.first(where: { $0.id == id }) {
-                    ItemInspector(item: item)
-                } else {
-                    EmptyStateView(symbol: "sidebar.right", title: "No selection", message: "Select an item to see what it is and how to get it back.")
-                }
-            }
-            .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
-        }
         .toolbar {
-            ToolbarItem {
-                Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
+            if roomForInspector {
+                ToolbarItem {
+                    Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
+                }
             }
         }
         .onChange(of: category) { focused = nil }
+    }
+
+    @ViewBuilder private func content(all: [CleanupItem], visible: [CleanupItem]) -> some View {
+        if model.scan == nil && !model.isScanning {
+            EmptyStateView(symbol: category.symbol, title: category.title, message: category.blurb,
+                           action: ("Scan", { model.startScan() }))
+        } else if all.isEmpty {
+            if model.isScanning && !model.scanFinished.contains(category) {
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("Scanning \(category.title)…").foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                EmptyStateView(symbol: "checkmark.circle", title: "Nothing to clean here",
+                               message: "SpaceSaver didn't find anything in \(category.title) worth removing.")
+            }
+        } else {
+            list(visible)
+                .safeAreaInset(edge: .bottom) {
+                    actionBar(all)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 14)
+                }
+        }
     }
 
     private func filtered(_ items: [CleanupItem]) -> [CleanupItem] {
@@ -92,6 +109,7 @@ struct CategoryView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(category.title).font(.system(size: 24, weight: .bold, design: .rounded))
                     Text(category.blurb).foregroundStyle(.secondary).lineLimit(2)
+                        .frame(minWidth: 0, alignment: .leading)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 3) {
@@ -104,50 +122,26 @@ struct CategoryView: View {
                     }
                 }
             }
-            HStack(spacing: 10) {
-                Picker("Risk", selection: $riskFilter) {
-                    ForEach(RiskFilter.allCases, id: \.self) { Text($0.rawValue) }
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 270)
-                Menu {
-                    Picker("Sort by", selection: $sort) {
-                        ForEach(Sort.allCases, id: \.self) { Text($0.rawValue) }
+            if twoRows {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        riskPicker
+                        sortMenu
+                        Spacer(minLength: 0)
                     }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label("Sort: \(sort.rawValue)", systemImage: "arrow.up.arrow.down")
-                }
-                .menuStyle(.borderlessButton).fixedSize()
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.caption)
-                    TextField("Filter", text: $search).textFieldStyle(.plain)
-                    if !search.isEmpty {
-                        Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .buttonStyle(.plain).foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        filterField
+                        headerActions(all)
                     }
                 }
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Capsule().fill(Color.primary.opacity(0.06)))
-                .frame(maxWidth: 220)
-                Spacer()
-                if category == .aiSessions {
-                    Button {
-                        model.auditSecrets(all.filter { !$0.paths.isEmpty })
-                    } label: {
-                        HStack(spacing: 6) {
-                            if model.auditing { ProgressView().controlSize(.mini) } else { Image(systemName: "key.viewfinder") }
-                            Text("Audit for Secrets")
-                        }
-                    }
-                    .buttonStyle(SoftButtonStyle(tint: .red))
-                    .disabled(model.auditing)
-                    .help("Scan these logs offline for API keys and tokens")
+            } else {
+                HStack(spacing: 10) {
+                    riskPicker
+                    sortMenu
+                    filterField.frame(maxWidth: 220)
+                    Spacer()
+                    headerActions(all)
                 }
-                Button { model.startScan(categories: [category]) } label: {
-                    Label("Rescan", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(SoftButtonStyle())
-                .disabled(model.isScanning)
             }
         }
         .padding(.horizontal, 24)
@@ -155,7 +149,68 @@ struct CategoryView: View {
         .padding(.bottom, 14)
     }
 
+    // MARK: Header pieces
+
+    /// The list's own width (the inspector takes some of the detail area when it's open).
+    private var roomForInspector: Bool { width >= 900 }
+    private var listWidth: CGFloat { width - (showInspector && roomForInspector ? 320 : 0) }
+    private var twoRows: Bool { listWidth < 860 }
+
+    private var riskPicker: some View {
+        Picker("Risk", selection: $riskFilter) {
+            ForEach(RiskFilter.allCases, id: \.self) { Text($0.rawValue) }
+        }
+        .pickerStyle(.segmented).labelsHidden().frame(minWidth: 200, maxWidth: 270)
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort by", selection: $sort) {
+                ForEach(Sort.allCases, id: \.self) { Text($0.rawValue) }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label("Sort: \(sort.rawValue)", systemImage: "arrow.up.arrow.down")
+        }
+        .menuStyle(.borderlessButton).fixedSize()
+    }
+
+    private var filterField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.caption)
+            TextField("Filter", text: $search).textFieldStyle(.plain)
+            if !search.isEmpty {
+                Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+    }
+
+    @ViewBuilder private func headerActions(_ all: [CleanupItem]) -> some View {
+        if category == .aiSessions {
+            Button {
+                model.auditSecrets(all.filter { !$0.paths.isEmpty })
+            } label: {
+                HStack(spacing: 6) {
+                    if model.auditing { ProgressView().controlSize(.mini) } else { Image(systemName: "key.viewfinder") }
+                    Text("Audit for Secrets")
+                }
+            }
+            .buttonStyle(SoftButtonStyle(tint: .red))
+            .disabled(model.auditing)
+            .help("Scan these logs offline for API keys and tokens")
+        }
+        Button { model.startScan(categories: [category]) } label: {
+            Label("Rescan", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(SoftButtonStyle())
+        .disabled(model.isScanning)
+    }
+
     // MARK: List
+
 
     private func list(_ items: [CleanupItem]) -> some View {
         let groups = Dictionary(grouping: items) { $0.group ?? "" }
@@ -185,6 +240,8 @@ struct CategoryView: View {
         }
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
+        // The table behind a List would otherwise widen to fit its longest row.
+        .frame(minWidth: 0, maxWidth: .infinity)
     }
 
     private func allSelected(_ rows: [CleanupItem]) -> Bool {
@@ -259,7 +316,7 @@ struct ItemRow: View {
             .disabled(!item.isSelectable)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(item.title).fontWeight(.medium).lineLimit(1)
+                    Text(item.title).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                     RiskBadge(risk: item.risk, compact: true)
                     if let findings, !findings.isEmpty {
                         Tag(text: "\(findings.count) secret\(findings.count == 1 ? "" : "s")", color: .red)
@@ -273,6 +330,8 @@ struct ItemRow: View {
                     Label(blocked, systemImage: "pause.circle").font(.caption).foregroundStyle(.orange)
                 }
             }
+            .frame(minWidth: 0, alignment: .leading)
+            .layoutPriority(-1)
             Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 3) {
                 SizeText(bytes: item.size, font: .callout.weight(.semibold))

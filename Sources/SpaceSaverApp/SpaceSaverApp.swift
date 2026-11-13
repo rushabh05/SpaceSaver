@@ -12,7 +12,7 @@ struct SpaceSaverApp: App {
         Window("SpaceSaver", id: "main") {
             ContentView()
                 .environment(model)
-                .frame(minWidth: 980, minHeight: 640)
+                .frame(minWidth: 760, minHeight: 540)
                 .task {
                     model.start()
                     DebugSnapshot.runIfRequested(model: model)

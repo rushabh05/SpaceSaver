@@ -433,3 +433,32 @@ struct AppBackground: View {
         .ignoresSafeArea()
     }
 }
+
+// MARK: - Responsive layout
+
+/// Width of the detail area (everything right of the sidebar), so screens can switch layouts
+/// instead of overflowing when the window is narrow.
+private struct ContentWidthKey: EnvironmentKey { static let defaultValue: CGFloat = 1000 }
+
+extension EnvironmentValues {
+    var contentWidth: CGFloat {
+        get { self[ContentWidthKey.self] }
+        set { self[ContentWidthKey.self] = newValue }
+    }
+}
+
+/// Lays children out side by side, or stacked when `stacked` is true.
+struct AdaptiveStack<Content: View>: View {
+    var stacked: Bool
+    var spacing: CGFloat = 18
+    var alignment: VerticalAlignment = .top
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if stacked {
+            VStack(alignment: .leading, spacing: spacing, content: content)
+        } else {
+            HStack(alignment: alignment, spacing: spacing, content: content)
+        }
+    }
+}

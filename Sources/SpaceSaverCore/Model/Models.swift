@@ -49,6 +49,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
     case ideCaches
     case aiModels
     case aiSessions
+    case agentWorktrees
     case systemJunk
     case appleDevices
     case downloads
@@ -70,6 +71,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .ideCaches: return "IDEs & Editors"
         case .aiModels: return "AI Models"
         case .aiSessions: return "AI Session Logs"
+        case .agentWorktrees: return "Agent Worktrees"
         case .systemJunk: return "System Junk"
         case .appleDevices: return "Devices & Installers"
         case .downloads: return "Old Downloads"
@@ -91,6 +93,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .ideCaches: return "chevron.left.forwardslash.chevron.right"
         case .aiModels: return "cpu"
         case .aiSessions: return "bubble.left.and.text.bubble.right"
+        case .agentWorktrees: return "arrow.triangle.branch"
         case .systemJunk: return "sparkles"
         case .appleDevices: return "iphone"
         case .downloads: return "arrow.down.circle"
@@ -119,6 +122,8 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
             return "Ollama, Hugging Face, LM Studio and other local model weights."
         case .aiSessions:
             return "Transcripts and indexes from Claude Code, Codex, Cursor, Copilot and other AI tools."
+        case .agentWorktrees:
+            return "Git worktrees Claude Code creates in .claude/worktrees. Commits stay in the repo; uncommitted changes are flagged."
         case .systemJunk:
             return "App caches, logs, crash reports and browser caches."
         case .appleDevices:
@@ -142,7 +147,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
 
     public var group: CategoryGroup {
         switch self {
-        case .projectArtifacts, .xcode, .docker, .packageCaches, .ideCaches, .aiModels, .aiSessions:
+        case .projectArtifacts, .xcode, .docker, .packageCaches, .ideCaches, .aiModels, .aiSessions, .agentWorktrees:
             return .developer
         default:
             return .system
@@ -151,7 +156,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
 
     /// Categories produced by the "Scan" pass (large files and duplicates need their own scans).
     public static let reclaimScanCategories: [CleanupCategory] = [
-        .projectArtifacts, .xcode, .docker, .packageCaches, .ideCaches, .aiModels, .aiSessions,
+        .projectArtifacts, .xcode, .docker, .packageCaches, .ideCaches, .aiModels, .aiSessions, .agentWorktrees,
         .systemJunk, .appleDevices, .downloads, .leftovers, .trash, .custom,
     ]
 }

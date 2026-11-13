@@ -4,12 +4,13 @@ import SwiftUI
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @State private var detailWidth: CGFloat = 1000
 
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
             Sidebar()
-                .navigationSplitViewColumnWidth(min: 228, ideal: 248, max: 300)
+                .navigationSplitViewColumnWidth(min: 210, ideal: 248, max: 300)
         } detail: {
             ZStack {
                 AppBackground()
@@ -17,7 +18,18 @@ struct ContentView: View {
                     .id(model.section)
                     .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 10)), removal: .opacity))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // minWidth 0: report no minimum to the split view, so a narrow window shrinks each
+            // screen (which then adapts) instead of squeezing the sidebar and spilling content.
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+            .clipped()
+            .environment(\.contentWidth, detailWidth)
+            .background {
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { detailWidth = geo.size.width }
+                        .onChange(of: geo.size.width) { _, width in detailWidth = width }
+                }
+            }
             .animation(Theme.spring, value: model.section)
         }
         .toolbar {

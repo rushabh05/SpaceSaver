@@ -14,6 +14,7 @@ extension CleanupCategory {
         case .ideCaches: return Color(red: 0.42, green: 0.40, blue: 0.85)
         case .aiModels: return Color(red: 0.85, green: 0.38, blue: 0.75)
         case .aiSessions: return Color(red: 0.93, green: 0.45, blue: 0.55)
+        case .agentWorktrees: return Color(red: 0.95, green: 0.55, blue: 0.35)
         case .systemJunk: return Color(red: 0.98, green: 0.62, blue: 0.20)
         case .appleDevices: return Color(red: 0.45, green: 0.65, blue: 0.45)
         case .downloads: return Color(red: 0.20, green: 0.70, blue: 0.60)

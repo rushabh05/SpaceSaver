@@ -63,6 +63,12 @@ disk (via firmlinks, without double counting), or any folder.
   manifest) before going to the Trash. Files touched in the last 24 hours and Claude Code
   `memory/` are never included.
 
+- **Agent Worktrees:** the git worktrees Claude Code creates in `<repo>/.claude/worktrees`. Removing
+  one never loses commits or branches (they live in the repository), so SpaceSaver checks each
+  with `git status`: clean and older than a week is Safe, uncommitted changes are Caution with
+  the count shown, worktrees whose repository moved are flagged, and anything touched in the last
+  day is treated as in use.
+
 **Cleanup categories:** app, browser and chat caches (skipped while the app runs), logs,
 crash reports, iOS backups and firmware, leftover macOS installers, old Downloads (flags
 installers for apps you already have and archives you already extracted), Large Files,

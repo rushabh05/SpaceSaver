@@ -212,3 +212,41 @@ func releaseJSON(tag: String, dmg: String, sig: String?) -> String {
     #expect(!item.recommended)
     #expect(item.title == "Editor")
 }
+
+// MARK: - Agent worktrees
+
+@Test func worktreeAnalyzerJudgesCleanDirtyAndMovedWorktrees() throws {
+    let sb = Sandbox()
+    let home = sb.path("home")
+    let repo = sb.dir("home/code/app")
+    let git = try #require(Shell.which("git"))
+    func run(_ args: [String], in dir: String = repo) {
+        Shell.run(git, ["-C", dir, "-c", "user.name=T", "-c", "user.email=t@example.com"] + args)
+    }
+    run(["init", "-q"])
+    sb.file("home/code/app/README.md", content: "hi")
+    run(["add", "."])
+    run(["commit", "-qm", "init"])
+    run(["worktree", "add", "-q", "-b", "clean-task", repo + "/.claude/worktrees/clean-task"])
+    run(["worktree", "add", "-q", "-b", "dirty-task", repo + "/.claude/worktrees/dirty-task"])
+    sb.file("home/code/app/.claude/worktrees/dirty-task/notes.txt", content: "unsaved work")
+    // A worktree whose repository has moved away.
+    sb.file("home/code/app/.claude/worktrees/orphan/.git", content: "gitdir: /nonexistent/repo/.git/worktrees/orphan\n")
+    sb.file("home/code/app/.claude/worktrees/orphan/file.txt", bytes: 1000)
+
+    var analyzer = WorktreeAnalyzer(env: ScanEnvironment(home: home, now: Date().addingTimeInterval(30 * 86_400)),
+                                    extraRoots: [repo])
+    analyzer.safeAfterDays = 7
+    let items = Dictionary(uniqueKeysWithValues: analyzer.analyze().map { ($0.title, $0) })
+    let clean = try #require(items["app · clean-task"])
+    #expect(clean.risk == .safe && clean.recommended && clean.tags.contains("clean-task"))
+    let dirty = try #require(items["app · dirty-task"])
+    #expect(dirty.risk == .caution && !dirty.recommended)
+    #expect(dirty.tags.contains("1 uncommitted change"))
+    let orphan = try #require(items["app · orphan"])
+    #expect(orphan.tags.contains("Repository moved") && orphan.risk == .review)
+
+    // Touched just now: treated as in use.
+    let fresh = WorktreeAnalyzer(env: ScanEnvironment(home: home), extraRoots: [repo]).analyze()
+    #expect(fresh.allSatisfy { $0.blockedReason != nil })
+}

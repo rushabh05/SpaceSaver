@@ -4,6 +4,7 @@ import SwiftUI
 
 struct OverviewView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.contentWidth) private var width
 
     var body: some View {
         ScrollView {
@@ -15,10 +16,10 @@ struct OverviewView: View {
 
                 HeroCard().appear(delay: 0.05)
 
-                HStack(alignment: .top, spacing: 18) {
+                AdaptiveStack(stacked: width < 860) {
                     SmartCleanCard().frame(maxWidth: .infinity)
                     if model.scan != nil && !model.isScanning {
-                        MakeRoomCard().frame(width: 320)
+                        MakeRoomCard().frame(maxWidth: width < 860 ? .infinity : 320)
                     }
                 }
                 .appear(delay: 0.1)
@@ -28,7 +29,7 @@ struct OverviewView: View {
                 }
                 if !model.activity.isEmpty { recentActivity.appear(delay: 0.2) }
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, width < 640 ? 18 : 28)
             .padding(.vertical, 22)
             .frame(maxWidth: 1240)
             .frame(maxWidth: .infinity)
@@ -104,12 +105,15 @@ struct OverviewView: View {
 
 private struct HeroCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.contentWidth) private var width
 
     var body: some View {
+        let stacked = width < 760
         Card(padding: 24) {
             if let disk = model.disk {
-                HStack(alignment: .center, spacing: 34) {
-                    ring(disk).frame(width: 214, height: 214)
+                AdaptiveStack(stacked: stacked, spacing: stacked ? 20 : 34, alignment: .center) {
+                    ring(disk).frame(width: stacked ? 180 : 214, height: stacked ? 180 : 214)
+                        .frame(maxWidth: stacked ? .infinity : nil)
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 8) {
                             Image(systemName: "internaldrive.fill").foregroundStyle(.secondary)
@@ -179,9 +183,10 @@ private struct HeroCard: View {
     private func legendRow(_ label: String, _ bytes: Int64, _ fraction: Double, _ color: Color) -> some View {
         HStack(spacing: 10) {
             Circle().fill(color).frame(width: 8, height: 8)
-            Text(label).font(.callout).foregroundStyle(.secondary).frame(width: 140, alignment: .leading)
-            ShareBar(fraction: fraction, color: color, height: 6)
-            BytesText(bytes: bytes, font: .callout.weight(.semibold)).frame(width: 84, alignment: .trailing)
+            Text(label).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                .frame(minWidth: 90, idealWidth: 140, maxWidth: 140, alignment: .leading)
+            ShareBar(fraction: fraction, color: color, height: 6).frame(minWidth: 40)
+            BytesText(bytes: bytes, font: .callout.weight(.semibold)).lineLimit(1).frame(width: 84, alignment: .trailing)
         }
     }
 
@@ -217,7 +222,12 @@ private struct HeroCard: View {
 
 private struct SmartCleanCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.contentWidth) private var width
     @State private var hoverButton = false
+
+    /// The card's own width: full width when the Overview stacks it, otherwise beside Make Room.
+    private var cardWidth: CGFloat { width < 860 ? width - 56 : width - 56 - 338 }
+    private var sideBySide: Bool { cardWidth >= 640 }
 
     var body: some View {
         Card(padding: 22, tint: Theme.successColors[0]) {
@@ -234,11 +244,12 @@ private struct SmartCleanCard: View {
 
     private var ready: some View {
         let items = model.recommendedItems
-        return HStack(alignment: .center, spacing: 22) {
+        return AdaptiveStack(stacked: !sideBySide, spacing: 22, alignment: .center) {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Smart Clean", systemImage: "wand.and.stars")
                     .font(.headline).foregroundStyle(Theme.success)
                 BytesText(bytes: items.totalSize, font: .system(size: 42, weight: .bold, design: .rounded))
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.success)
                 Text("\(items.count) regenerable items: caches, dormant projects' build folders and installers you've used. Running apps and active projects are skipped.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -255,7 +266,7 @@ private struct SmartCleanCard: View {
                 }
                 .padding(.top, 4)
             }
-            Spacer(minLength: 0)
+            if sideBySide { Spacer(minLength: 0) }
             breakdown(items)
         }
     }
