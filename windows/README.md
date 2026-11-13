@@ -20,12 +20,12 @@ windows/
 
 | Category | Examples | Risk |
 | --- | --- | --- |
-| Project Artifacts | 46 rules ported from the macOS app: `node_modules` + `package.json`, `target` + `Cargo.toml`/`pom.xml`, `bin`/`obj` + `*.csproj`/`*.fsproj`, `.venv` + `pyproject.toml`/`requirements.txt`, `build`/`.gradle` + `build.gradle(.kts)`, `.next` + `next.config.*`… | Safe in dormant projects; Review when active, with no lockfile, or for venvs and `dist` |
-| Package Caches | npm (`%LOCALAPPDATA%\npm-cache`), npx, pnpm store, Yarn, Bun, pip, uv, Poetry, NuGet `v3-cache`/`plugins-cache`, NuGet global packages, Gradle, Maven, Cargo registry, Go build and module caches, Deno (only `deps`, `remote`, `gen`, `npm` and `registries` in `DENO_DIR`, never its KV databases or `location_data`), node-gyp, Playwright, Puppeteer, Cypress, Electron, Android AVDs and system images | Safe, or Review for big shared stores (pnpm, NuGet packages, Maven, Go modules, Playwright, Android) |
+| Project Artifacts | 46 rules ported from the macOS app: `node_modules` + `package.json`, `target` + `Cargo.toml`/`pom.xml`, `bin`/`obj` + `*.csproj`/`*.fsproj`, `.venv` + `pyproject.toml`/`requirements.txt`, `build`/`.gradle` + `build.gradle(.kts)`, `.next` + `next.config.*`… | Safe in dormant projects; Review when active, with no lockfile, or for venvs, `dist`, `.terraform` and `.vercel` (they can hold local state and links) |
+| Package Caches | npm (`%LOCALAPPDATA%\npm-cache`), npx, pnpm store, Yarn 1, Yarn Berry's global cache (Review: Plug'n'Play projects run from it), Bun, pip, uv, Poetry's download caches (its virtualenvs are separate Review items), NuGet `v3-cache`/`plugins-cache`, NuGet global packages, Gradle, Maven, Cargo registry, Go build cache (only when `GOCACHE` holds Go's own `README` or `trim.txt`), Go module cache, Deno (only `deps`, `remote`, `gen`, `npm` and `registries` in `DENO_DIR`, never its KV databases or `location_data`), node-gyp, Playwright, Puppeteer, Cypress, Electron, Android AVDs and system images | Safe, or Review for big shared stores (pnpm, NuGet packages, Maven, Go modules, Playwright, Android) |
 | IDEs & Editors | VS Code, VS Code Insiders, Cursor, Windsurf, VSCodium (`Cache`, `CachedData`, `CachedExtensionVSIXs`, `Code Cache`, `GPUCache`, `logs` under `%APPDATA%\<Editor>`), JetBrains `%LOCALAPPDATA%\JetBrains\*\caches` per IDE version, Android Studio | Safe; blocked while the editor is running |
 | AI Models | Hugging Face (per model or dataset), Ollama (`blobs` and `manifests` in the models folder), LM Studio (per model), PyTorch Hub, Whisper | Review |
 | WSL & Docker | WSL distro disks (from the `Lxss` registry key and `%LOCALAPPDATA%\Packages\*\LocalState`, `%LOCALAPPDATA%\wsl\*`) and Docker Desktop's disk (`%LOCALAPPDATA%\Docker\wsl\...`) | Manual: never deleted |
-| System Junk | `%LOCALAPPDATA%\CrashDumps`, top-level `%TEMP%` entries nothing has modified for 7 days | Safe |
+| System Junk | `%LOCALAPPDATA%\CrashDumps`, top-level `%TEMP%` entries nothing has modified for 7 days (only when `%TEMP%` looks like a real temp folder: `%LOCALAPPDATA%\Temp`, or a folder named `Temp`/`Tmp` that isn't a drive root, the profile, a top-level or personal profile folder, or a system folder; otherwise `scan` says why it was skipped) | Safe |
 
 A project is **dormant** when neither the newest `.git/logs/HEAD` reflog entry, the git index nor
 any file at the project root changed in 45 days. Active projects are tagged "Active Xd ago" and
@@ -44,7 +44,8 @@ double-counted or followed out of the folder.
   every top-level folder in it (Desktop, Documents, Downloads, OneDrive…); `AppData`,
   `AppData\Local`, `AppData\Roaming` and `%TEMP%` themselves; `.ssh`, `.aws`, `.azure`, `.gnupg`,
   `.kube`, `.docker` and Windows credential folders; anything inside a `.git` folder; any reparse
-  point; and any path that isn't inside the user profile or `%TEMP%`. The rules run on the path
+  point; any top-level folder of a drive; and any path that isn't inside the user profile or
+  `%TEMP%` (and `%TEMP%` counts only when it looks like a real temp folder). The rules run on the path
   as given and again on its fully resolved form (junctions in its parents and 8.3 short names
   anywhere, the last component included, so `~\AppData\Roaming\MICROS~1` is judged as
   `Microsoft`). Comparison is case-insensitive and `\\?\` prefixes, `/`, `..` and trailing dots
@@ -55,13 +56,15 @@ double-counted or followed out of the folder.
   hour old ("Scan again before cleaning"), and refuses if the review dialog was opened on a
   different scan than the current one.
 * **Recycle Bin first.** Items go to the Recycle Bin (via the `trash` crate), never deleted
-  outright. The bin's settings are read for the drive of each path (once per drive and run):
-  the per-volume size limit and "don't move files to the Recycle Bin", and the `NoRecycleFiles`
-  and `RecycleBinSize` policies under `HKLM`/`HKCU\...\Policies\Explorer`, which override them.
-  An item is refused if the bin is off, if the settings can't be read (network drives
-  included), if it is bigger than the limit, or if it would take the total this run moved to
-  that drive over the limit, because Windows would then delete permanently or push earlier
-  items out. Space is freed when the Recycle Bin is emptied.
+  outright. The bin's settings are read for the volume that really holds each path (found with
+  `GetVolumePathNameW`, so a volume mounted in a folder counts as its own volume; once per
+  volume and run): the per-volume size limit and "don't move files to the Recycle Bin", and the
+  `NoRecycleFiles` and `RecycleBinSize` policies under `HKLM`/`HKCU\...\Policies\Explorer`,
+  which override them. An item is refused if it is on a removable, network, optical or RAM
+  drive (which have no Recycle Bin), if the bin is off, if the settings or drive type can't be
+  read, if it is bigger than the limit, or if it would take the total this run moved to that
+  volume over the limit, because Windows would then delete permanently or push earlier items
+  out. Space is freed when the Recycle Bin is emptied.
 * **Undo.** Each cleanup is written to `%LOCALAPPDATA%\SpaceSaver\activity.json` with every
   original path and when it moved: the entry is written before the first move and updated
   after each one, so an interrupted run still leaves a record ("Incomplete") that can be
@@ -152,4 +155,20 @@ python3 -m http.server -d windows/app/ui 8000   # then open http://localhost:800
   isn't counted, so a big cleanup can still make Windows drop the user's oldest recycled files.
 * Restore can still race a tool that recreates the folder in the moment between its "nothing
   is there" check and the shell's move; the shell then merges the two.
-* Sizes are logical, not allocated (compressed or sparse files are counted at full size).
+* Sizes are logical, not allocated (NTFS-compressed or sparse files are counted at full size).
+  Files compressed by Windows Overlay Filter (`compact /exe`) or deduplicated are reparse points,
+  which the sizer skips, so they count as 0 bytes and the Recycle Bin size check can undercount
+  what actually moves.
+
+### Known safety gaps
+
+* **Junction swap between check and move.** A path is validated by name and then moved by name.
+  If something replaces one of its parent folders with a junction in between, the move follows
+  the junction. Fixing this needs the move to go through a handle opened during validation.
+* **Targets that contain git repositories.** Only paths inside a `.git` folder are refused. A
+  build or cache folder that itself contains a nested repository (a vendored checkout, say) can
+  still be offered and moved with it.
+* **`%LOCALAPPDATA%` unset.** SpaceSaver's data folder (with the activity log) then falls back
+  to `%TEMP%\SpaceSaver`, while the scanner falls back to `%USERPROFILE%\AppData\Local`. The two
+  disagree, and the activity log ends up inside the temp folder (the guard still refuses to
+  move it, which blocks the whole "Old temporary files" item).

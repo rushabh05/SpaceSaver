@@ -310,6 +310,9 @@ fn print_summary(summary: &ScanSummary, flags: &Flags) {
             }
         }
     }
+    for note in &summary.notes {
+        println!("\nNote: {note}");
+    }
     if summary.items.is_empty() {
         println!("\nNothing found.");
     } else {

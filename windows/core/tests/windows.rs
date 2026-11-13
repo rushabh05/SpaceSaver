@@ -174,7 +174,21 @@ impl FakeBins {
     }
 
     fn drive(mut self, drive: &str, max_bytes: u64, disabled: bool) -> Self {
-        self.drives.insert(drive.to_string(), Ok(RecycleBinInfo { drive: drive.to_string(), max_bytes, disabled }));
+        let info = RecycleBinInfo { drive: drive.to_string(), volume: drive.to_string(), max_bytes, disabled, no_bin: None };
+        self.drives.insert(drive.to_string(), Ok(info));
+        self
+    }
+
+    /// A volume with no Recycle Bin at all (a removable drive, say).
+    fn without_bin(mut self, drive: &str, kind: &str) -> Self {
+        let info = RecycleBinInfo {
+            drive: drive.to_string(),
+            volume: drive.to_string(),
+            max_bytes: 0,
+            disabled: true,
+            no_bin: Some(kind.to_string()),
+        };
+        self.drives.insert(drive.to_string(), Ok(info));
         self
     }
 
@@ -706,8 +720,14 @@ fn recycle_bin_limits_are_per_drive_cumulative_and_fail_closed() {
     let (y2, y2_item) = item_at(&sb, "y2", r"code\drive-y\two", 10);
     let (z, z_item) = item_at(&sb, "z", r"code\drive-z\one", 10);
     let (net, net_item) = item_at(&sb, "net", r"code\drive-net\one", 10);
-    let items = vec![x1_item, x2_item, w_item, y1_item, y2_item, z_item, net_item];
-    let bins = FakeBins::new().drive("X:\\", 3_000, false).drive("W:\\", 1_000, false).unreadable("Y:\\").drive("Z:\\", 1 << 40, true);
+    let (r, r_item) = item_at(&sb, "r", r"code\drive-r\one", 10);
+    let items = vec![x1_item, x2_item, w_item, y1_item, y2_item, z_item, net_item, r_item];
+    let bins = FakeBins::new()
+        .drive("X:\\", 3_000, false)
+        .drive("W:\\", 1_000, false)
+        .unreadable("Y:\\")
+        .drive("Z:\\", 1 << 40, true)
+        .without_bin("R:\\", "a removable drive");
 
     let store = Store::new(sb.tmp.path().join("data"));
     let log = store.activity();
@@ -725,7 +745,8 @@ fn recycle_bin_limits_are_per_drive_cumulative_and_fail_closed() {
         assert!(reason("y1").contains("Couldn't read the Recycle Bin settings"), "{}", reason("y1"));
         assert!(reason("y2").contains("Couldn't read the Recycle Bin settings"), "{}", reason("y2"));
         assert!(reason("z").contains("turned off"), "{}", reason("z"));
-        assert!(reason("net").contains("no Recycle Bin"), "{}", reason("net"));
+        assert!(reason("net").contains("Couldn't tell which drive"), "{}", reason("net"));
+        assert!(reason("r").contains("is on a removable drive") && reason("r").contains("no Recycle Bin"), "{}", reason("r"));
     };
 
     // The dry run reports the same refusals and moves nothing.
@@ -736,7 +757,7 @@ fn recycle_bin_limits_are_per_drive_cumulative_and_fail_closed() {
     let report = cleaner.clean(&items, &CleanOptions::run("test"), &mut |_| {});
     check(&report);
     assert!(!x1.exists());
-    for p in [&x2, &w, &y1, &y2, &z, &net] {
+    for p in [&x2, &w, &y1, &y2, &z, &net, &r] {
         assert!(p.exists(), "{} should not have moved", p.display());
     }
     assert_eq!(fake.count(), 1);
@@ -744,7 +765,7 @@ fn recycle_bin_limits_are_per_drive_cumulative_and_fail_closed() {
     // Each drive's settings were read once per run (Y only once despite two items).
     let mut asked = bins.asked.lock().unwrap().clone();
     asked.sort();
-    assert_eq!(asked, vec!["W:\\", "W:\\", "X:\\", "X:\\", "Y:\\", "Y:\\", "Z:\\", "Z:\\"]);
+    assert_eq!(asked, vec!["R:\\", "R:\\", "W:\\", "W:\\", "X:\\", "X:\\", "Y:\\", "Y:\\", "Z:\\", "Z:\\"]);
 }
 
 // ---------- activity log durability ----------
@@ -938,4 +959,134 @@ fn deno_and_ollama_rules_take_only_their_cache_folders() {
     assert_eq!(ollama_item.risk, Risk::Review);
     assert_eq!(ollama_item.size, 4196);
     assert!(ollama_item.paths.iter().all(|p| p.ends_with("blobs") || p.ends_with("manifests")), "{:?}", ollama_item.paths);
+}
+
+// ---------- the real volume and its Recycle Bin ----------
+
+#[test]
+fn real_recycle_bin_settings_for_the_profile_volume() {
+    let sb = Sandbox::new();
+    let root = spacesaver_core::system::volume_root_of(&sb.home).expect("volume root");
+    assert!(root.ends_with('\\'), "{root}");
+    assert!(paths::is_within(&paths::key_of(&sb.home), &paths::key(&root)), "{root} should hold {}", sb.home.display());
+    let info = spacesaver_core::system::recycle_bin_info(&root).expect("Recycle Bin settings");
+    assert!(info.no_bin.is_none(), "{info:?}");
+    assert!(info.volume.starts_with(r"\\?\Volume{"), "{info:?}");
+    assert!(info.max_bytes > 0, "{info:?}");
+}
+
+// ---------- an implausible %TEMP% ----------
+
+#[test]
+fn temp_must_look_like_a_temp_folder() {
+    let sb = Sandbox::new();
+    let local = sb.home.join(r"AppData\Local");
+    let check = |p: &Path| spacesaver_core::env::temp_problem(p, &sb.home, &local);
+    let drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into());
+
+    assert_eq!(check(&sb.temp), None);
+    assert_eq!(check(&sb.temp.join("2")), None, "a Remote Desktop session's temp folder");
+    assert_eq!(check(&sb.outside().join("Temp")), None, "a Temp folder outside the profile");
+    assert_eq!(check(&sb.outside().join("TMP")), None);
+
+    for bad in [
+        PathBuf::from(format!(r"{drive}\")),
+        sb.home.clone(),
+        sb.home.parent().unwrap().to_path_buf(),
+        sb.home.join("Temp"),
+        sb.home.join(r"Documents\Temp"),
+        sb.outside().join("data"),
+        PathBuf::from(format!(r"{drive}\Windows\Temp")),
+    ] {
+        assert!(check(&bad).is_some(), "{} should not count as a temp folder", bad.display());
+    }
+}
+
+#[test]
+fn an_implausible_temp_is_neither_scanned_nor_deletable() {
+    let sb = Sandbox::new();
+    let data = sb.outside().join("data");
+    write(&data.join(r"Photos\holiday.jpg"), 4096);
+    age(&data.join(r"Photos\holiday.jpg"), 30);
+    let mut env = sb.env();
+    env.temp = data.clone();
+    assert!(env.temp_problem().is_some());
+    assert!(caches::old_temp_files(&env).is_none());
+    let summary = scan(&env, None, &ScanOptions { categories: Some(vec![Category::SystemJunk]) });
+    assert!(summary.notes.iter().any(|n| n.contains("Old temporary files skipped")), "{:?}", summary.notes);
+
+    let guard = SafetyGuard::new(GuardConfig::for_home(&sb.home, &data));
+    match guard.validate(&data.join("Photos")) {
+        Err(SafetyError::OutsideAllowed(_)) => {}
+        other => panic!("expected outside, got {other:?}"),
+    }
+    // A real temp folder outside the profile is still an allowed root.
+    let real = sb.outside().join("Temp");
+    write(&real.join(r"old\x.tmp"), 10);
+    let guard = SafetyGuard::new(GuardConfig::for_home(&sb.home, &real));
+    assert!(guard.validate(&real.join("old")).is_ok());
+}
+
+// ---------- rules that need care ----------
+
+#[test]
+fn poetry_yarn_berry_and_go_cache_rules() {
+    let sb = Sandbox::new();
+    let local = sb.home.join(r"AppData\Local");
+    write(&local.join(r"pypoetry\Cache\cache\repositories\pypi\x"), 4096);
+    write(&local.join(r"pypoetry\Cache\artifacts\ab\cd\pkg.whl"), 4096);
+    write(&local.join(r"pypoetry\Cache\virtualenvs\app-AbCd1234-py3.12\Lib\site-packages\x.py"), 4096);
+    write(&local.join(r"Yarn\Berry\cache\pkg-npm-1.0.0.zip"), 4096);
+    write(&local.join(r"Yarn\Cache\v6\npm-pkg-1.0.0\index.js"), 4096);
+    // GOCACHE pointing at a folder that isn't Go's.
+    let mut env = sb.env();
+    env.go_cache = sb.home.join(r"dev\shared");
+    write(&env.go_cache.join("notes.txt"), 4096);
+
+    let items = caches::analyze(&env, &Default::default());
+    let poetry = items.iter().find(|i| i.id == "pkg.poetry").expect("poetry cache");
+    assert!(poetry.recommended && poetry.risk == Risk::Safe);
+    assert_eq!(poetry.size, 8192);
+    assert!(poetry.paths.iter().all(|p| !p.to_lowercase().contains("virtualenvs")), "{:?}", poetry.paths);
+    let venv = items.iter().find(|i| i.id.starts_with("pkg.poetry.venv")).expect("poetry virtualenv");
+    assert_eq!(venv.risk, Risk::Review);
+    assert!(!venv.recommended);
+    assert!(venv.title.contains("app-AbCd1234-py3.12"), "{}", venv.title);
+    let berry = items.iter().find(|i| i.id == "pkg.yarn.berry").expect("yarn berry cache");
+    assert_eq!(berry.risk, Risk::Review);
+    assert!(!berry.recommended);
+    assert!(items.iter().find(|i| i.id == "pkg.yarn").unwrap().recommended);
+    assert!(items.iter().all(|i| i.id != "pkg.go.build"), "GOCACHE without Go's README must not be offered");
+
+    // With Go's own README it is.
+    fs::write(env.go_cache.join("README"), "This directory holds cached build artifacts from the Go build system.\n").unwrap();
+    let items = caches::analyze(&env, &Default::default());
+    let go = items.iter().find(|i| i.id == "pkg.go.build").expect("go build cache");
+    assert!(go.recommended && go.risk == Risk::Safe);
+}
+
+#[test]
+fn walker_skips_relocated_tool_folders() {
+    let sb = Sandbox::new();
+    let mut env = sb.env();
+    env.deno_dir = sb.home.join("deno");
+    env.hf_home = sb.home.join("hf");
+    // Deno unpacks npm packages, each with its own package.json, dist and coverage.
+    let pkg = env.deno_dir.join(r"npm\registry.npmjs.org\left-pad\1.0.0");
+    write(&pkg.join("package.json"), 20);
+    write(&pkg.join(r"coverage\lcov.info"), 4096);
+    write(&pkg.join(r"node_modules\x\index.js"), 4096);
+    age(&pkg.join("package.json"), 200);
+    let model = env.hf_home.join(r"hub\some-space");
+    write(&model.join("package.json"), 20);
+    write(&model.join(r"node_modules\y\index.js"), 4096);
+    // A real project still counts.
+    let real = node_project(&sb.home.join(r"code\old-app"), 90);
+
+    let items = projects::analyze(&env);
+    assert!(find(&items, &real.to_string_lossy()).is_some());
+    for item in &items {
+        let p = item.paths[0].to_lowercase();
+        assert!(!p.contains(r"\deno\") && !p.contains(r"\hf\"), "{p} is inside a tool folder");
+    }
 }

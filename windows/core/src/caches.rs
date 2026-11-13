@@ -88,7 +88,11 @@ fn make_item(env: &ScanEnv, rule: &LocationRule, group: Vec<PathBuf>, stats: Sta
 }
 
 /// Top-level entries of `%TEMP%` that nothing has modified for `env.temp_age_days`, as one item.
+/// Nothing when `%TEMP%` doesn't look like a real temp folder (see [`ScanEnv::temp_problem`]).
 pub fn old_temp_files(env: &ScanEnv) -> Option<CleanupItem> {
+    if env.temp_problem().is_some() {
+        return None;
+    }
     let cutoff = env.now - env.temp_age_days as i64 * 86_400;
     let read = fs::read_dir(&env.temp).ok()?;
     let candidates: Vec<PathBuf> = read
