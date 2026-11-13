@@ -151,12 +151,14 @@ final class IslandController {
 
     private func trackMouse() {
         guard !pinned, let panel, let screen, let model else { return }
+        let mouse = NSEvent.mouseLocation
+        if !state.hovering && mouse.y < screen.frame.maxY - 260 { return }
         let mode = IslandLayout.mode(model, state)
         let size = IslandLayout.size(mode == .hidden && !state.hasNotch ? .live : mode, notch: state.notch)
         let margin: CGFloat = mode == .expanded ? 14 : 2
         let hot = NSRect(x: screen.frame.midX - size.width / 2 - margin, y: screen.frame.maxY - size.height - margin,
                          width: size.width + margin * 2, height: size.height + margin)
-        let inside = hot.contains(NSEvent.mouseLocation)
+        let inside = hot.contains(mouse)
 
         if inside {
             leaveDeadline = nil
@@ -173,7 +175,7 @@ final class IslandController {
                 }
             }
         }
-        panel.ignoresMouseEvents = !state.hovering
+        if panel.ignoresMouseEvents == state.hovering { panel.ignoresMouseEvents = !state.hovering }
     }
 
     func collapse() {
@@ -285,7 +287,7 @@ private struct LiveEars: View {
         } else if IslandLayout.isLowDisk(model) {
             Image(systemName: "externaldrive.fill.badge.exclamationmark")
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(.red)
-                .symbolEffect(.pulse, options: .repeating)
+                .symbolEffect(.pulse, options: .repeat(3), isActive: true)
         } else {
             Image(systemName: "internaldrive.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.75))
         }

@@ -3,7 +3,7 @@ import Foundation
 /// The version of this build. `scripts/build-app.sh` and `scripts/release.sh` read it from here,
 /// so bump it in this one place.
 public enum AppVersion {
-    public static let current = "1.1.1"
+    public static let current = "1.1.2"
 
     /// The version of the installed app bundle when running from one (the app, or the CLI inside
     /// `Contents/Helpers`), otherwise the compiled-in version.

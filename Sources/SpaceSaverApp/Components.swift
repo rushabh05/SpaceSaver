@@ -164,7 +164,7 @@ struct EmptyStateView: View {
                     .foregroundStyle(Theme.brand)
                     .offset(y: floating ? -3 : 3)
             }
-            .onAppear { withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { floating = true } }
+            .onAppear { withAnimation(.easeInOut(duration: 2.2).repeatCount(3, autoreverses: true)) { floating = true } }
             Text(title).font(.title3.weight(.semibold))
             Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 440)
             if let action {

@@ -97,13 +97,19 @@ struct AppearModifier: ViewModifier {
 /// A moving highlight, used on call-to-action buttons and while scanning.
 struct ShimmerModifier: ViewModifier {
     var active: Bool
+    /// Number of sweeps before it stops. Endless animations keep the app redrawing (and using
+    /// CPU) for as long as the view is on screen.
+    var passes = 2
+    @State private var started = Date()
+    @State private var running = true
+
+    private let period = 2.6
 
     func body(content: Content) -> some View {
         content.overlay {
-            if active {
-                TimelineView(.animation) { timeline in
-                    let period = 2.6
-                    let t = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+            if active && running {
+                TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+                    let t = timeline.date.timeIntervalSince(started).truncatingRemainder(dividingBy: period) / period
                     GeometryReader { geo in
                         let band = geo.size.width * 0.35
                         LinearGradient(colors: [.clear, .white.opacity(0.32), .clear], startPoint: .leading, endPoint: .trailing)
@@ -115,6 +121,15 @@ struct ShimmerModifier: ViewModifier {
                 .mask(content)
                 .allowsHitTesting(false)
             }
+        }
+        .onAppear {
+            started = Date()
+            running = true
+        }
+        .task(id: active) {
+            guard active else { return }
+            try? await Task.sleep(for: .seconds(period * Double(passes)))
+            running = false
         }
     }
 }
@@ -359,7 +374,9 @@ struct SuccessBadge: View {
 
     var body: some View {
         ZStack {
-            if let burstStart { ParticleBurst(start: burstStart, radius: size * 1.05) }
+            if let burstStart, Date().timeIntervalSince(burstStart) < 1.2 {
+                ParticleBurst(start: burstStart, radius: size * 1.05)
+            }
             Circle()
                 .fill(Theme.success)
                 .frame(width: size, height: size)
@@ -375,6 +392,11 @@ struct SuccessBadge: View {
             withAnimation(Theme.bouncy) { popped = true }
             withAnimation(.easeOut(duration: 0.35).delay(0.2)) { drawn = true }
             burstStart = Date()
+        }
+        .task {
+            // Re-render once after the burst so it's removed and its timeline stops.
+            try? await Task.sleep(for: .seconds(1.25))
+            burstStart = burstStart.map { $0.addingTimeInterval(-10) }
         }
     }
 }
@@ -418,7 +440,7 @@ struct PulseDot: View {
             .fill(color)
             .frame(width: 7, height: 7)
             .background(Circle().fill(color.opacity(0.45)).scaleEffect(pulsing ? 2.6 : 1).opacity(pulsing ? 0 : 1))
-            .onAppear { withAnimation(.easeOut(duration: 1.3).repeatForever(autoreverses: false)) { pulsing = true } }
+            .onAppear { withAnimation(.easeOut(duration: 1.3).repeatCount(3, autoreverses: false)) { pulsing = true } }
     }
 }
 

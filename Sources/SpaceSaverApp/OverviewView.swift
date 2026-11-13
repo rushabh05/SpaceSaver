@@ -443,7 +443,7 @@ struct FullDiskAccessBanner: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "lock.shield.fill").font(.title2).foregroundStyle(.orange)
-                .symbolEffect(.pulse, options: .repeating)
+                .symbolEffect(.pulse, options: .repeat(3), isActive: true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Grant Full Disk Access for a complete scan").font(.headline)
                 Text("Without it, macOS hides the Trash, Mail downloads, iOS backups and some app caches.")
