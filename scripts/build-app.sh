@@ -4,12 +4,19 @@
 #   scripts/build-app.sh            # release build, ad-hoc signed
 #   scripts/build-app.sh --dmg      # also create build/SpaceSaver.dmg
 #   SIGN_IDENTITY="Developer ID Application: …" scripts/build-app.sh --dmg
+#
+# The version comes from Sources/SpaceSaverCore/Support/Version.swift (SPACESAVER_VERSION
+# overrides it, for testing updates). OUT changes the output folder (default: build).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="1.0.0"
+VERSION="${SPACESAVER_VERSION:-$(sed -n 's/.*static let current = "\(.*\)".*/\1/p' Sources/SpaceSaverCore/Support/Version.swift)}"
+[ -n "$VERSION" ] || { echo "Couldn't read the version from Version.swift" >&2; exit 1; }
 BUILD_NUMBER="$(date +%Y%m%d%H%M)"
-OUT="build"
+OUT="${OUT:-build}"
+# Updates: the app only installs releases signed with the private key matching this public key.
+UPDATE_PUBLIC_KEY="$(tr -d '[:space:]' < scripts/update-public-key.txt 2>/dev/null || true)"
+UPDATE_FEED="${UPDATE_FEED:-https://api.github.com/repos/rushabh05/SpaceSaver/releases/latest}"
 APP="$OUT/SpaceSaver.app"
 MAKE_DMG=false
 [[ "${1:-}" == "--dmg" ]] && MAKE_DMG=true
@@ -55,6 +62,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticTermination</key><false/>
+  <key>SSUpdatePublicKey</key><string>$UPDATE_PUBLIC_KEY</string>
+  <key>SSUpdateFeedURL</key><string>$UPDATE_FEED</string>
   <key>NSHumanReadableCopyright</key><string>SpaceSaver. Local-first disk cleanup for developers.</string>
   <key>NSDesktopFolderUsageDescription</key><string>SpaceSaver looks for code projects and large files on your Desktop. Nothing is removed without your confirmation.</string>
   <key>NSDocumentsFolderUsageDescription</key><string>SpaceSaver looks for code projects, build artifacts and large files in Documents. Nothing is removed without your confirmation.</string>

@@ -57,6 +57,7 @@ struct GeneralSettings: View {
                     }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
             }
+            UpdateSettingsSection()
             Section("Data") {
                 LabeledContent("Settings, history and activity") {
                     Button("Show in Finder") { Finder.reveal([AppPaths.default.base]) }

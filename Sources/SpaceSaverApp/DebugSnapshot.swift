@@ -40,6 +40,17 @@ enum DebugSnapshot {
             model.section = .overview
             try? await Task.sleep(for: .seconds(3))
             capture(name: "09-overview-late", dir: dir)
+            // Update banner with a sample release (nothing is downloaded).
+            model.update = UpdateRelease(version: "1.2.0", tag: "v1.2.0", title: "SpaceSaver 1.2.0",
+                                         notes: "Faster scans and a new uninstaller.", publishedAt: Date(),
+                                         dmgURL: URL(string: "https://example.com/SpaceSaver.dmg")!,
+                                         signatureURL: URL(string: "https://example.com/SpaceSaver.dmg.sig")!,
+                                         size: 3_400_000, pageURL: nil)
+            model.updateStatus = .available
+            try? await Task.sleep(for: .seconds(3))
+            capture(name: "17-update-banner", dir: dir)
+            model.update = nil
+            model.updateStatus = .idle
             model.section = .category(.packageCaches)
             try? await Task.sleep(for: .seconds(1.2))
             capture(name: "10-package-caches", dir: dir)
@@ -62,6 +73,18 @@ enum DebugSnapshot {
             try? await Task.sleep(for: .seconds(1.4))
             captureWindow(island.islandWindow, name: "14-island-expanded-cleaning", dir: dir)
             model.cleaning = nil
+            island.state.hovering = false
+
+            // Apps (uninstaller): wait for the inventory, then select the biggest app.
+            model.section = .apps
+            while !model.appsLoaded { try? await Task.sleep(for: .milliseconds(200)) }
+            try? await Task.sleep(for: .seconds(1.2))
+            capture(name: "15-apps", dir: dir)
+            model.section = .category(.leftovers)
+            try? await Task.sleep(for: .seconds(1.2))
+            capture(name: "16-leftovers", dir: dir)
+
+
             NSApp.terminate(nil)
         }
     }

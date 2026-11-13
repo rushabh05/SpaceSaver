@@ -9,6 +9,7 @@ enum SidebarSection: Hashable {
     case category(CleanupCategory)
     case largeFiles
     case duplicates
+    case apps
     case activity
     case approvals
 }
@@ -74,6 +75,15 @@ final class AppModel {
     var toast: Toast?
     var cleanupRequest: CleanupRequest?
 
+    // Apps (uninstaller)
+    var apps: [AppRecord] = []
+    var appsLoading = false
+    var appsLoaded = false
+
+    // Updates
+    var update: UpdateRelease?
+    var updateStatus: UpdateStatus = .idle
+
     // Activity and agents
     var activity: [ActivityEntry] = []
     var plans: [CleanupPlan] = []
@@ -130,11 +140,13 @@ final class AppModel {
             await MainActor.run { self.snapshotsCount = count }
         }
         if settings.schedule.purgeExpiredTrash { purgeExpired(silent: true) }
+        checkForUpdatesIfDue()
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { _ in
             Task { @MainActor in
                 self.refreshDisk()
                 self.refreshPlans()
+                self.checkForUpdatesIfDue()
             }
         }
     }
@@ -311,6 +323,7 @@ final class AppModel {
         // Keep derived views in sync.
         let removedPaths = Set(items.filter { done.contains($0.id) }.flatMap(\.paths))
         largeFiles.removeAll { removedPaths.contains($0.path) }
+        pruneApps(removed: removedPaths)
         if !duplicateGroups.isEmpty {
             duplicateGroups = duplicateGroups.compactMap { group in
                 var g = group

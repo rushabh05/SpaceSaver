@@ -64,12 +64,13 @@
       <h1 class="reveal">Get back the gigabytes<br class="br-wide"> your dev tools <span class="grad">leave behind.</span></h1>
       <p class="lede reveal">SpaceSaver finds what macOS hides under “System Data”: stale <code>node_modules</code>, Xcode DerivedData, Docker build cache, package caches, local AI models and agent transcripts. It clears them safely, moving files to the Trash so you can undo.</p>
       <div class="cta-row reveal">
-        <a class="btn btn-primary btn-lg shimmer" data-download data-goatcounter-click="download-hero" href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg">
+        <a class="btn btn-primary btn-lg shimmer" data-download data-platform-swap data-goatcounter-click="download-hero" href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg">
           <i data-lucide="download"></i><span>Download for Mac</span>
         </a>
         <a class="btn btn-ghost btn-lg" href="#install"><i data-lucide="book-open"></i><span>How to install</span></a>
       </div>
-      <p class="meta reveal"><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14 or later · Free and open source</p>
+      <p class="meta reveal" data-platform-meta><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14 or later · Free and open source</p>
+      <p class="alt-platform" data-windows-row hidden><span data-windows-text>Also available for Windows (beta):</span> <a data-download-windows data-goatcounter-click="download-windows-hero" href="#">download the installer</a></p>
     </div>
 
     <div class="wrap">
@@ -88,6 +89,7 @@
               <div class="side-list">
                 <div class="side-item active"><span class="tile" style="--c:#4f82ff"><i data-lucide="gauge"></i></span>Overview</div>
                 <div class="side-item"><span class="tile" style="--c:#12a1c7"><i data-lucide="layout-grid"></i></span>Storage Map</div>
+                <div class="side-item"><span class="tile" style="--c:#4d8cf2"><i data-lucide="package-x"></i></span>Apps<em>13.8 GB</em></div>
                 <div class="side-item"><span class="tile" style="--c:#e6804d"><i data-lucide="file-stack"></i></span>Large Files</div>
                 <div class="side-item"><span class="tile" style="--c:#99994d"><i data-lucide="copy"></i></span>Duplicates</div>
                 <div class="side-head">Developer</div>
@@ -295,6 +297,21 @@
           <h3>Lives in your menu bar</h3>
           <p>Free space at a glance, Quick Clean with a two-step confirm, and pending agent requests, without opening a window.</p>
         </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#4d8cf2"><i data-lucide="package-x"></i></span>
+          <h3>Uninstalls apps completely</h3>
+          <p>See each app's size, when you last opened it, and the files it keeps in your Library. Uninstall removes the app and those files to the Trash, with undo. It also finds leftovers of apps you've already deleted.</p>
+        </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#21cc8f"><i data-lucide="shield-check"></i></span>
+          <h3>Updates itself, safely</h3>
+          <p>New versions install from inside the app. Every release is signed, and SpaceSaver refuses any download whose signature doesn't match. If an install fails, the old version comes back.</p>
+        </article>
+        <article class="b-card reveal">
+          <span class="b-icon" style="--c:#fa9e33"><i data-lucide="server"></i></span>
+          <h3>Keeps build machines lean</h3>
+          <p>On a CI runner, <code>spacesaver make-room 50GB --until-free --yes</code> frees just enough space, safest items first, before a big build.</p>
+        </article>
       </div>
     </div>
   </section>
@@ -471,7 +488,7 @@
       <div class="faq">
         <details class="reveal" open>
           <summary>Is it really free?<i data-lucide="chevron-down"></i></summary>
-          <p>Yes, and it's open source under the <a class="text-link" href="https://github.com/rushabh05/SpaceSaver/blob/main/LICENSE">MIT licence</a>. Every feature is included, with no account, licence key, cleanup cap or telemetry. The only network request SpaceSaver can make is to a local Ollama model, if you turn on AI explanations.</p>
+          <p>Yes, and it's open source under the <a class="text-link" href="https://github.com/rushabh05/SpaceSaver/blob/main/LICENSE">MIT licence</a>. Every feature is included, with no account, licence key, cleanup cap or telemetry. On its own, it only checks GitHub once a day for a new version (you can turn that off), and it talks to a local Ollama model only if you turn on AI explanations.</p>
         </details>
         <details class="reveal">
           <summary>Could it delete something I need?<i data-lucide="chevron-down"></i></summary>
@@ -480,6 +497,14 @@
         <details class="reveal">
           <summary>Why does macOS say it can't check the app for malware?<i data-lucide="chevron-down"></i></summary>
           <p>Apps distributed outside the App Store need Apple notarization to skip that warning, and SpaceSaver isn't notarized yet. Step 3 of the install shows how to allow it once. You can also read the source and build it yourself with <code>scripts/build-app.sh</code>.</p>
+        </details>
+        <details class="reveal" data-windows-row hidden>
+          <summary>Is there a Windows version?<i data-lucide="chevron-down"></i></summary>
+          <p>Yes, as a beta for Windows 10 and 11 (64-bit). It covers developer caches, build folders in dormant projects and old temp files, and shows how to shrink WSL and Docker disk images. Cleaning goes to the Recycle Bin, with restore. The installer isn't code-signed yet, so Windows SmartScreen may warn you: choose <b>More info</b>, then <b>Run anyway</b>. <a class="text-link" data-download-windows href="#">Download the Windows installer</a>.</p>
+        </details>
+        <details class="reveal">
+          <summary>How do updates work?<i data-lucide="chevron-down"></i></summary>
+          <p>From version 1.1, SpaceSaver checks for new versions once a day and offers to install them. Every release is signed with a private key, and the app installs an update only if the signature matches, so a tampered download is refused. If anything goes wrong, the previous version is put back. Version 1.0 has no updater, so download 1.1 once by hand.</p>
         </details>
         <details class="reveal">
           <summary>Does it run on Intel Macs?<i data-lucide="chevron-down"></i></summary>
@@ -503,8 +528,9 @@
       <img src="assets/icon-256.png" alt="" width="96" height="96" class="final-icon">
       <h2>Your disk has room. It's just full of caches.</h2>
       <p>Scan once and see how much of it can go safely. Nothing changes until you say so.</p>
-      <a class="btn btn-primary btn-lg shimmer" data-download data-goatcounter-click="download-final" href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg"><i data-lucide="download"></i><span>Download SpaceSaver</span></a>
-      <p class="meta"><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14+</p>
+      <a class="btn btn-primary btn-lg shimmer" data-download data-platform-swap data-goatcounter-click="download-final" href="https://github.com/rushabh05/SpaceSaver/releases/latest/download/SpaceSaver.dmg"><i data-lucide="download"></i><span>Download SpaceSaver</span></a>
+      <p class="meta" data-platform-meta><span data-version>v1.0.0</span> · <span data-size>3.2 MB</span> · Apple silicon · macOS 14+</p>
+      <p class="alt-platform" data-windows-row hidden><span data-windows-text>Also available for Windows (beta):</span> <a data-download-windows data-goatcounter-click="download-windows-final" href="#">download the installer</a></p>
     </div>
   </section>
 </main>

@@ -4,7 +4,7 @@ import Foundation
 /// about disk space and *propose* cleanups. Agents can never delete anything: proposals become
 /// pending plans that a person approves in the SpaceSaver app.
 public final class MCPServer: @unchecked Sendable {
-    public static let serverVersion = "1.0.0"
+    public static let serverVersion = AppVersion.current
     static let supportedProtocols = ["2025-06-18", "2025-03-26", "2024-11-05"]
 
     public var env: ScanEnvironment

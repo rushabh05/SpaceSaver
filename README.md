@@ -6,7 +6,8 @@ package-manager caches, local AI models, AI-agent transcripts) and removes them 
 undo.
 
 It's free and open source under the MIT licence. Everything runs on your Mac with no account,
-licence key or telemetry, and every feature is included.
+licence key or telemetry, and every feature is included. The only network request it makes on
+its own is a once-a-day check for a new version on GitHub, which you can turn off.
 
 **Download:** [rushabh05.github.io/SpaceSaver](https://rushabh05.github.io/SpaceSaver/) (Apple
 silicon, macOS 14 or later).
@@ -66,7 +67,21 @@ disk (via firmlinks, without double counting), or any folder.
 crash reports, iOS backups and firmware, leftover macOS installers, old Downloads (flags
 installers for apps you already have and archives you already extracted), Large Files,
 Duplicates (size, then head/tail hash, then full SHA-256; hard links and undownloaded iCloud
-files are skipped), and Trash.
+files are skipped), App Leftovers (support files, containers and saved state of apps that are no
+longer installed, only when no installed app from the same vendor could own them), and Trash.
+
+**Apps.** Every app in /Applications and ~/Applications with its size, when it was last opened,
+and the files it keeps in your Library (Application Support, caches, sandbox containers, saved
+state, web storage, logs). Uninstall removes the app and the files you tick, through the same
+review sheet, Trash and undo as everything else. Apple's apps and running apps can't be removed,
+and apps with system extensions (security, VPN, drivers) get a warning to use their own
+uninstaller.
+
+**Updates.** SpaceSaver checks GitHub once a day and offers new versions in the Overview, the menu
+bar and the island. Each release DMG is signed with an Ed25519 key; the app installs an update
+only if the signature matches the public key it ships with, the app inside has the right bundle
+ID and version, and its code signature is valid. The old version is kept and put back if
+anything fails.
 
 **Activity.** Every cleanup from the app, CLI, scheduler or an approved agent is logged with
 one-click **Restore** to the original location.
@@ -144,11 +159,18 @@ mock-ups with demo data, so they never show anyone's real disk.
 
 Every Download button points at `releases/latest/download/SpaceSaver.dmg`, and the page reads
 the version, size and SHA-256 of the latest release from the GitHub API. To publish a new
-version, bump `VERSION` in `scripts/build-app.sh`, then run:
+version, bump `AppVersion.current` in `Sources/SpaceSaverCore/Support/Version.swift`, then run:
 
 ```bash
 scripts/release.sh
 ```
+
+`release.sh` signs the DMG for in-app updates with the private key at
+`~/.spacesaver-release/update-signing.key` and uploads `SpaceSaver.dmg.sig` next to it. Create the
+key once with `swift scripts/update-signing.swift generate` (this also writes the public key to
+`scripts/update-public-key.txt`, which the build embeds). **Back the private key up**: without it,
+installed copies won't accept your updates and people would have to download new versions by
+hand.
 
 To preview the site locally, run `python3 -m http.server -d docs` and open http://localhost:8000.
 
@@ -166,6 +188,10 @@ spacesaver large --min 1GB        largest files
 spacesaver dupes ~/Projects       duplicates by SHA-256
 spacesaver explain <path>         what a folder is and whether it's safe
 spacesaver preflight 20           will 20 GB fit? (exit code 2 if not)
+spacesaver make-room 30GB         free 30 GB with the safest items first (dry run unless --yes)
+spacesaver make-room 50GB --until-free --yes --free-now   for CI: make sure 50 GB is free
+spacesaver apps [--unused]        installed apps by size, with their Library files
+spacesaver update [--check|--yes] check for, or install, a signed new version
 spacesaver secrets                audit AI logs for leaked keys (exit code 3 if found)
 spacesaver activity / restore <id> / purge --days 7
 spacesaver auto [--force]         the scheduled run
@@ -207,14 +233,16 @@ Sources/SpaceSaverCore/    engine (no UI): scanning, rules, analyzers, safety, c
   Scan/                    getattrlistbulk reader, parallel walker, tree scanner, sizer
   Rules/                   rule catalog + evaluator
   Analyzers/               projects, simulators, Docker, Ollama, editors, downloads, trash,
-                           AI sessions + secrets, duplicates
+                           AI sessions + secrets, duplicates, apps + leftovers
+  Update/                  signed in-app updates (feed, Ed25519 check, staged install)
   Cleanup/                 trash/restore/purge, archive vault, activity log
   Engine/                  orchestrator, knowledge base, history, plans, scheduler
   Agent/MCPServer.swift    JSON-RPC MCP server
 Sources/SpaceSaverApp/     SwiftUI app + menu bar
 Sources/spacesaver/        CLI
 Tests/                     Swift Testing suite
-scripts/                   build-app.sh, release.sh, test.sh, make-icon.swift
+scripts/                   build-app.sh, release.sh, test.sh, stats.sh, update-signing.swift,
+                           make-icon.swift, make-social-card.swift
 docs/                      download website (GitHub Pages)
 ```
 

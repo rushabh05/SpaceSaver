@@ -21,6 +21,10 @@ struct SpaceSaverApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1180, height: 760)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { model.checkForUpdates(manual: true) }
+                    .disabled(model.updateStatus.isBusy)
+            }
             CommandGroup(after: .newItem) {
                 Button("Scan for Reclaimable Space") { model.startScan() }
                     .keyboardShortcut("r", modifiers: .command)

@@ -345,8 +345,37 @@
         $('[data-sha]').textContent = asset.digest.slice(7);
         $('[data-sha-row]').hidden = false;
       }
+      offerWindows(rel, asset);
     })
     .catch(() => { /* keep the static fallbacks */ });
+
+  // ---------- Windows beta: shown only when the latest release has a Windows installer ----------
+  function offerWindows(rel, dmg) {
+    const win = (rel.assets || []).find((a) => /windows.*\.exe$/i.test(a.name));
+    if (!win) return;
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || '';
+    const onWindows = /windows/i.test(platform);
+    $$('[data-download-windows]').forEach((el) => { el.href = win.browser_download_url; });
+    $$('[data-windows-row]').forEach((el) => { el.hidden = false; });
+    if (!onWindows) return;
+    // Windows visitors get the Windows installer as the main button and a link to the Mac app.
+    const size = `${(win.size / 1e6).toFixed(1)} MB`;
+    $$('[data-platform-swap]').forEach((el) => {
+      el.href = win.browser_download_url;
+      el.dataset.goatcounterClick = el.dataset.goatcounterClick.replace('download-', 'download-windows-');
+      const label = el.querySelector('span');
+      if (label) label.textContent = 'Download for Windows (beta)';
+    });
+    $$('[data-platform-meta]').forEach((el) => {
+      el.textContent = `Windows beta · ${size} · Windows 10 or 11, 64-bit · Free and open source`;
+    });
+    $$('[data-windows-text]').forEach((el) => { el.textContent = 'Looking for the Mac app?'; });
+    $$('.alt-platform [data-download-windows]').forEach((el) => {
+      el.href = dmg.browser_download_url;
+      el.textContent = 'Download for Mac';
+      el.dataset.goatcounterClick = el.dataset.goatcounterClick.replace('download-windows-', 'download-mac-');
+    });
+  }
 
   // ---------- Analytics (cookieless; only when GOATCOUNTER_CODE is set) ----------
   if (GOATCOUNTER_CODE) {

@@ -44,6 +44,7 @@ struct ContentView: View {
         case .category(let category): CategoryView(category: category)
         case .largeFiles: LargeFilesView()
         case .duplicates: DuplicatesView()
+        case .apps: AppsView()
         case .activity: ActivityView()
         case .approvals: ApprovalsView()
         }
@@ -99,6 +100,8 @@ struct Sidebar: View {
             Section {
                 row(.overview, "Overview", "gauge.with.dots.needle.67percent", Theme.brandColors[0], nil)
                 row(.storageMap, "Storage Map", "square.grid.3x3.fill", Color(red: 0.2, green: 0.6, blue: 0.95), nil)
+                row(.apps, "Apps", CleanupCategory.apps.symbol, CleanupCategory.apps.color,
+                    model.apps.isEmpty ? nil : model.apps.reduce(0) { $0 + $1.totalSize })
             }
             Section("Developer") {
                 ForEach(CleanupCategory.allCases.filter { $0.group == .developer }) { categoryRow($0) }
@@ -107,6 +110,7 @@ struct Sidebar: View {
                 categoryRow(.systemJunk)
                 categoryRow(.appleDevices)
                 categoryRow(.downloads)
+                categoryRow(.leftovers)
                 row(.largeFiles, "Large Files", CleanupCategory.largeFiles.symbol, CleanupCategory.largeFiles.color,
                     model.largeFiles.isEmpty ? nil : model.largeFiles.reduce(0) { $0 + $1.size })
                 row(.duplicates, "Duplicates", CleanupCategory.duplicates.symbol, CleanupCategory.duplicates.color,

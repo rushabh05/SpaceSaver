@@ -51,6 +51,21 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
             }
+            if let update = model.update {
+                Button { model.installUpdate() } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.brand)
+                        Text(model.updateStatus.isBusy ? model.updateStatus.label : "Update to \(update.version)")
+                        Spacer()
+                        if model.updateStatus.isBusy { ProgressView().controlSize(.small) }
+                        else { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
+                    }
+                    .padding(10)
+                    .surface(radius: 10, tint: Theme.brandColors[0])
+                }
+                .buttonStyle(.plain)
+                .disabled(model.updateStatus.isBusy)
+            }
             if model.heldInTrash > 0 {
                 HStack {
                     Image(systemName: "trash").foregroundStyle(.secondary)

@@ -6,7 +6,7 @@ import SpaceSaverCore
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
-let version = MCPServer.serverVersion
+let version = AppVersion.installed
 var args = Array(CommandLine.arguments.dropFirst())
 let command = args.isEmpty ? "help" : args.removeFirst()
 
@@ -36,6 +36,19 @@ func options(_ name: String) -> [String] {
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("spacesaver: \(message)\n".utf8))
     exit(1)
+}
+
+/// Runs async work from this synchronous command-line program.
+final class ResultBox<T>: @unchecked Sendable { var result: Result<T, Error>? }
+func blocking<T>(_ work: @escaping @Sendable () async throws -> T) throws -> T {
+    let semaphore = DispatchSemaphore(value: 0)
+    let box = ResultBox<T>()
+    Task.detached {
+        do { box.result = .success(try await work()) } catch { box.result = .failure(error) }
+        semaphore.signal()
+    }
+    semaphore.wait()
+    return try box.result!.get()
 }
 
 func printJSON<T: Encodable>(_ value: T) {
@@ -141,6 +154,12 @@ case "help", "-h", "--help":
       dupes [path...] [--min 1MB]  Duplicate files by SHA-256
       explain <path>               What a folder is and whether it's safe to remove
       preflight <GB> [--headroom 2]  Will an operation needing <GB> fit?
+      make-room <size> [options]   Free <size> using the safest items first (dry run unless --yes)
+          --until-free               Treat <size> as a target for total free space instead
+          --include-review           Also use "review" items (never "caution")
+          --free-now                 Empty the cleaned items from the Trash right away (no undo)
+          --yes                      Actually clean
+      apps [--unused] [--json]     Installed apps by size, with the files they keep in ~/Library
       secrets [path...]            Audit AI session logs for leaked API keys
       activity [--limit 20]        Cleanup history
       restore <id>                 Undo a cleanup (moves items back from Trash)
@@ -148,6 +167,7 @@ case "help", "-h", "--help":
       auto [--force]               Scheduled run (used by the LaunchAgent)
       mcp                          Run the MCP server for AI agents (stdio)
       rules                        Show built-in rules and the custom rules file
+      update [--check] [--yes]     Check for a new version; --yes installs it (signature-verified)
 
     \(bold("CATEGORIES"))
       \(CleanupCategory.reclaimScanCategories.map(\.rawValue).joined(separator: ", "))
@@ -421,6 +441,149 @@ case "rules":
     }
     print("\n" + bold("Project artifacts: ") + Set(ArtifactRule.all.map(\.directory)).sorted().joined(separator: ", "))
     print("\nCustom rules: \(AppPaths.default.customRules) " + dim("(JSON array, same fields as built-in rules)"))
+
+case "make-room":
+    let untilFree = flag("--until-free")
+    let includeReview = flag("--include-review")
+    let freeNow = flag("--free-now")
+    let yes = flag("--yes") || flag("-y")
+    let rescan = flag("--rescan")
+    let asJSON = flag("--json")
+    guard let sizeText = args.first, let requested = ByteFormat.parse(sizeText), requested > 0 else {
+        fail("usage: spacesaver make-room <size, e.g. 20GB> [--until-free] [--include-review] [--free-now] [--yes]")
+    }
+    let settings = Settings.load()
+    let freeBefore = DiskStatus.current()?.free ?? 0
+    let need = untilFree ? max(requested - freeBefore, 0) : requested
+    if need == 0 {
+        print("\(ByteFormat.string(freeBefore)) is already free (target \(ByteFormat.string(requested))). Nothing to do.")
+        break
+    }
+    var summary = LastScanStore.load()
+    if rescan || summary == nil || Date().timeIntervalSince(summary!.date) > 3600 {
+        summary = runScan(Set(CleanupCategory.reclaimScanCategories), quiet: asJSON)
+    }
+    let candidates = summary!.items.filter { item in
+        item.isSelectable && item.method != .emptyTrash && item.risk != .caution
+            && (item.recommended || (includeReview && item.risk == .review))
+    }
+    let plan = RoomPlanner.plan(toFree: need, from: candidates, maxRisk: includeReview ? .review : .safe)
+    if asJSON {
+        struct Out: Encodable {
+            let need: Int64; let planned: Int64; let satisfied: Bool; let items: [CleanupItem]
+        }
+        printJSON(Out(need: need, planned: plan.total, satisfied: plan.satisfied, items: plan.items))
+        if !yes { break }
+    } else {
+        printItems(plan.items)
+        print("\n" + bold("Plan: \(plan.items.count) item\(plan.items.count == 1 ? "" : "s"), \(ByteFormat.string(plan.total)) for the \(ByteFormat.string(need)) needed."))
+        if !plan.satisfied {
+            print(color("33", "  Only \(ByteFormat.string(plan.total)) available" + (includeReview ? "." : ". Add --include-review to use more.")))
+        }
+    }
+    guard yes else {
+        if !asJSON { print(dim("Dry run. Add --yes to clean these" + (freeNow ? " and empty them from the Trash." : ", then --free-now to skip the Trash."))) }
+        break
+    }
+    guard !plan.items.isEmpty else { break }
+    let engine = CleanupEngine(settings: settings)
+    let report = engine.clean(plan.items, source: "cli") { done, total, title in
+        if isatty(STDERR_FILENO) != 0 {
+            FileHandle.standardError.write(Data("\r[\(done)/\(total)] \(title)\u{1B}[K".utf8))
+        }
+    }
+    FileHandle.standardError.write(Data("\r\u{1B}[K".utf8))
+    for error in report.errors { print(color("31", "  ✗ \(error)")) }
+    if freeNow {
+        let purged = engine.purge(ids: Set(report.entries.map(\.id)))
+        print(color("32", "✓ Cleaned \(ByteFormat.string(report.bytesCleaned)) and emptied \(ByteFormat.string(purged)) from the Trash."))
+    } else {
+        print(color("32", "✓ Cleaned \(ByteFormat.string(report.bytesCleaned))."))
+        if report.bytesMovedToTrash > 0 {
+            print("  \(ByteFormat.string(report.bytesMovedToTrash)) is in the Trash, so it isn't free yet. " +
+                  "Run `spacesaver purge --days 0` (or use --free-now) to free it.")
+        }
+    }
+    var remaining = LastScanStore.load() ?? summary!
+    let cleanedIDs = Set(plan.items.map(\.id))
+    remaining.items.removeAll { cleanedIDs.contains($0.id) }
+    LastScanStore.save(remaining)
+    let freeAfter = DiskStatus.current()?.free ?? 0
+    print("  Free space: \(ByteFormat.string(freeBefore)) → \(ByteFormat.string(freeAfter))")
+
+case "apps":
+    let unusedOnly = flag("--unused")
+    let asJSON = flag("--json")
+    var records = AppInventory(env: ScanEnvironment(settings: Settings.load())).load()
+    if unusedOnly {
+        records = records.filter { ($0.lastUsed.map { Date().timeIntervalSince($0) > 180 * 86_400 }) ?? false }
+    }
+    if asJSON {
+        printJSON(records)
+        break
+    }
+    for app in records {
+        let used = app.lastUsed.map { "opened " + RelativeTime.string(since: $0) } ?? "last opened: unknown"
+        let extra = app.leftoverSize > 0 ? dim("  +\(ByteFormat.string(app.leftoverSize)) in Library") : ""
+        print("\(lpad(ByteFormat.string(app.size), 10))  \(pad(app.name, 34)) \(dim(used))\(extra)")
+    }
+    let total = records.reduce(Int64(0)) { $0 + $1.totalSize }
+    print("\n" + bold("\(records.count) apps, \(ByteFormat.string(total)) including their Library files.") +
+          dim(" Uninstall from the app's Apps section (moves to Trash, restorable)."))
+
+case "update":
+    let checkOnly = flag("--check")
+    let yes = flag("--yes")
+    let asJSON = flag("--json")
+    let detached = flag("--detached") // installs after this process exits, like the app does
+    let app = InstalledApp.current
+    let current = app?.version ?? AppVersion.current
+    let config = UpdateConfig.forInstalledApp(app)
+    let latest: UpdateRelease?
+    do {
+        latest = try blocking { try await UpdateChecker.check(current: current, config: config) }
+    } catch {
+        fail(error.localizedDescription)
+    }
+    if asJSON {
+        struct Out: Encodable { let current: String; let updateAvailable: Bool; let latest: UpdateRelease? }
+        printJSON(Out(current: current, updateAvailable: latest != nil, latest: latest))
+        exit(0)
+    }
+    guard let release = latest else {
+        print("SpaceSaver \(current) is up to date.")
+        exit(0)
+    }
+    print(bold("SpaceSaver \(release.version) is available") + dim(" (you have \(current))"))
+    if !release.summary.isEmpty { print(release.summary) }
+    guard yes, !checkOnly else {
+        if !checkOnly { print(dim("Install it with: spacesaver update --yes")) }
+        exit(0)
+    }
+    guard let app else {
+        fail("not running from SpaceSaver.app. Download the update from \(release.pageURL?.absoluteString ?? "the website").")
+    }
+    guard let key = config.publicKey else { fail(UpdateError.noPublicKey.localizedDescription) }
+    if !detached, RunningApps.snapshot().bundleIDs.contains(app.bundleID.lowercased()) {
+        fail("SpaceSaver is open. Quit it first, or install the update from the app.")
+    }
+    let installer = UpdateInstaller(publicKey: key, expectedBundleID: app.bundleID)
+    do {
+        try installer.preflight(target: app)
+        print("Downloading \(ByteFormat.string(release.size))…")
+        let dmg = try blocking { try await installer.download(release) }
+        print("Signature verified. Checking the new app…")
+        let staged = try installer.stage(dmg: dmg, expectedVersion: release.version)
+        if detached {
+            try installer.install(staged: staged, over: app, waitForPID: getpid(), relaunch: false)
+            print("Installing \(release.version) after this process exits.")
+        } else {
+            try installer.install(staged: staged, over: app, waitForPID: nil, relaunch: false)
+            print(color("32", "✓") + " Updated \(Paths.abbreviate(app.url.path)) to \(release.version).")
+        }
+    } catch {
+        fail(error.localizedDescription)
+    }
 
 default:
     fail("unknown command '\(command)'. Run `spacesaver help`.")

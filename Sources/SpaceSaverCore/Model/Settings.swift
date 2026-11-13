@@ -45,6 +45,8 @@ public struct Settings: Codable, Hashable, Sendable {
     public var trashRetentionDays = 7
     /// Skip caches belonging to running apps (Xcode, Docker, browsers...).
     public var activeAppGuard = true
+    /// Check GitHub once a day for a newer signed release.
+    public var autoCheckUpdates = true
     public var schedule = ScheduleSettings()
     public var ai = AISettings()
 
@@ -64,6 +66,7 @@ public struct Settings: Codable, Hashable, Sendable {
         duplicateMinSizeMB = (try? c.decode(Int.self, forKey: .duplicateMinSizeMB)) ?? d.duplicateMinSizeMB
         trashRetentionDays = (try? c.decode(Int.self, forKey: .trashRetentionDays)) ?? d.trashRetentionDays
         activeAppGuard = (try? c.decode(Bool.self, forKey: .activeAppGuard)) ?? d.activeAppGuard
+        autoCheckUpdates = (try? c.decode(Bool.self, forKey: .autoCheckUpdates)) ?? d.autoCheckUpdates
         schedule = (try? c.decode(ScheduleSettings.self, forKey: .schedule)) ?? d.schedule
         ai = (try? c.decode(AISettings.self, forKey: .ai)) ?? d.ai
     }

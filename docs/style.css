@@ -153,6 +153,10 @@ h1 { font-size: clamp(38px, 7vw, 76px); line-height: 1.02; font-weight: 800; let
 .cta-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin: 32px 0 14px; }
 .meta { font-size: 13.5px; color: var(--ink-3); }
 .caption { text-align: center; color: var(--ink-3); font-size: 13px; margin-top: 14px; }
+.alt-platform { font-size: 13.5px; color: var(--ink-3); margin-top: 6px; }
+.alt-platform a { color: var(--brand-1); text-decoration: underline; text-underline-offset: 2px; }
+.final .alt-platform { color: rgba(255, 255, 255, .6); }
+.final .alt-platform a { color: #fff; }
 @media (max-width: 640px) { .br-wide { display: none; } .hero { padding-top: 48px; } .cta-row .btn { width: 100%; } .cta-row { width: 100%; } }
 
 /* scaler: renders a fixed-size design scaled to the container width */

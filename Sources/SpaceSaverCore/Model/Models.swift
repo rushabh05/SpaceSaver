@@ -52,10 +52,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
     case systemJunk
     case appleDevices
     case downloads
+    case leftovers
     case largeFiles
     case duplicates
     case trash
     case custom
+    case apps
 
     public var id: String { rawValue }
 
@@ -71,10 +73,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .systemJunk: return "System Junk"
         case .appleDevices: return "Devices & Installers"
         case .downloads: return "Old Downloads"
+        case .leftovers: return "App Leftovers"
         case .largeFiles: return "Large Files"
         case .duplicates: return "Duplicates"
         case .trash: return "Trash"
         case .custom: return "Custom Rules"
+        case .apps: return "Apps"
         }
     }
 
@@ -90,10 +94,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .systemJunk: return "sparkles"
         case .appleDevices: return "iphone"
         case .downloads: return "arrow.down.circle"
+        case .leftovers: return "app.dashed"
         case .largeFiles: return "doc.zipper"
         case .duplicates: return "doc.on.doc"
         case .trash: return "trash"
         case .custom: return "slider.horizontal.3"
+        case .apps: return "xmark.bin"
         }
     }
 
@@ -119,6 +125,8 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
             return "iOS backups, firmware files and leftover macOS installers."
         case .downloads:
             return "Installers and archives in Downloads that you've probably already used."
+        case .leftovers:
+            return "Support files, containers and saved state from apps you've already deleted."
         case .largeFiles:
             return "The biggest files in your home folder."
         case .duplicates:
@@ -127,6 +135,8 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
             return "Files already in the Trash still take up space until it's emptied."
         case .custom:
             return "Locations from your own rules in ~/.spacesaver/rules.json."
+        case .apps:
+            return "Uninstall apps together with the files they leave in your Library."
         }
     }
 
@@ -142,7 +152,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
     /// Categories produced by the "Scan" pass (large files and duplicates need their own scans).
     public static let reclaimScanCategories: [CleanupCategory] = [
         .projectArtifacts, .xcode, .docker, .packageCaches, .ideCaches, .aiModels, .aiSessions,
-        .systemJunk, .appleDevices, .downloads, .trash, .custom,
+        .systemJunk, .appleDevices, .downloads, .leftovers, .trash, .custom,
     ]
 }
 

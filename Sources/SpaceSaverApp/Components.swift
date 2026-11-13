@@ -17,6 +17,8 @@ extension CleanupCategory {
         case .systemJunk: return Color(red: 0.98, green: 0.62, blue: 0.20)
         case .appleDevices: return Color(red: 0.45, green: 0.65, blue: 0.45)
         case .downloads: return Color(red: 0.20, green: 0.70, blue: 0.60)
+        case .leftovers: return Color(red: 0.72, green: 0.45, blue: 0.86)
+        case .apps: return Color(red: 0.30, green: 0.55, blue: 0.95)
         case .largeFiles: return Color(red: 0.90, green: 0.50, blue: 0.30)
         case .duplicates: return Color(red: 0.60, green: 0.60, blue: 0.30)
         case .trash: return Color(red: 0.55, green: 0.55, blue: 0.60)

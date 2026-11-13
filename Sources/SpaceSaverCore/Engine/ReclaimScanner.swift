@@ -46,6 +46,7 @@ public final class ReclaimScanner: @unchecked Sendable {
         add(.systemJunk) { evaluator.evaluate(RuleCatalog.rules(for: .systemJunk), claimed: claimed) }
         add(.appleDevices) { evaluator.evaluate(RuleCatalog.rules(for: .appleDevices), claimed: claimed) }
         add(.downloads) { DownloadsAnalyzer(env: env).analyze() }
+        add(.leftovers) { LeftoverAnalyzer(env: env, running: running).analyze() }
         add(.trash) { TrashAnalyzer(env: env).analyze() }
         if !customRules.isEmpty {
             add(.custom) { evaluator.evaluate(customRules, claimed: claimed) }
@@ -77,7 +78,7 @@ public final class ReclaimScanner: @unchecked Sendable {
     /// items nested inside another item's folder.
     static func deduplicate(_ items: [CleanupItem]) -> [CleanupItem] {
         let priority: [CleanupCategory] = [.projectArtifacts, .aiSessions, .aiModels, .xcode, .docker, .ideCaches,
-                                           .packageCaches, .appleDevices, .downloads, .custom, .systemJunk, .trash]
+                                           .packageCaches, .appleDevices, .downloads, .leftovers, .custom, .systemJunk, .trash]
         let ordered = items.sorted {
             (priority.firstIndex(of: $0.category) ?? 99) < (priority.firstIndex(of: $1.category) ?? 99)
         }

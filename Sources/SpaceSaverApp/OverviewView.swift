@@ -11,6 +11,7 @@ struct OverviewView: View {
                 header.appear()
                 if !model.hasFullDiskAccess { FullDiskAccessBanner().appear(delay: 0.04) }
                 if !model.pendingPlans.isEmpty { PendingPlansBanner().appear(delay: 0.06) }
+                if model.update != nil { UpdateBanner().appear(delay: 0.08) }
 
                 HeroCard().appear(delay: 0.05)
 
