@@ -227,6 +227,10 @@ pub struct CategorySummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanSummary {
+    /// A random id for this scan. The app only cleans from the scan it produced itself, and
+    /// checks that the review the user confirmed was opened on that same scan.
+    #[serde(default)]
+    pub id: String,
     pub version: u32,
     /// Unix seconds.
     pub date: i64,
@@ -256,7 +260,7 @@ impl ScanSummary {
                 }
             })
             .collect();
-        ScanSummary { version: 1, date, duration_ms, disk, categories, items }
+        ScanSummary { id: crate::activity::new_id(), version: 1, date, duration_ms, disk, categories, items }
     }
 
     /// Items Smart Clean would move.
@@ -272,7 +276,7 @@ impl ScanSummary {
         self.items.iter().map(|i| i.size).sum()
     }
 
-    /// Recomputes the category totals after items were removed.
+    /// Recomputes the category totals after items were removed. Keeps the scan's id.
     pub fn refresh(&mut self) {
         let items = std::mem::take(&mut self.items);
         let fresh = ScanSummary::new(items, self.disk.clone(), self.date, self.duration_ms);

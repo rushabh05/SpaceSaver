@@ -25,8 +25,8 @@ pub mod wsl;
 
 pub use activity::{ActivityEntry, ActivityLog, ActivityStatus, TrashRecord};
 pub use cleanup::{
-    CleanOptions, CleanProgress, CleanReport, Cleaner, PlannedItem, RestoreReport, Skipped, SystemTrash,
-    Trasher,
+    CleanOptions, CleanProgress, CleanReport, Cleaner, PlannedItem, RecycleBinSettings, RestoreReport, RestoreRequest,
+    Skipped, SystemRecycleBin, SystemTrash, Trasher,
 };
 pub use env::ScanEnv;
 pub use format::{age_label, ago, format_bytes};

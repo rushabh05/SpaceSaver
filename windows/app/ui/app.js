@@ -10,7 +10,7 @@
     disk: () => TAURI.core.invoke('disk_status'),
     lastScan: () => TAURI.core.invoke('last_scan'),
     scan: () => TAURI.core.invoke('scan'),
-    clean: (ids) => TAURI.core.invoke('clean', { ids }),
+    clean: (ids, scanId) => TAURI.core.invoke('clean', { ids, scanId }),
     activity: () => TAURI.core.invoke('activity'),
     restore: (id) => TAURI.core.invoke('restore', { id }),
     reveal: (path) => TAURI.core.invoke('reveal', { path }),
@@ -43,6 +43,10 @@
     scanning: false,
     busy: false,
     pending: [],
+    pendingScanId: null,
+    // Id of the scan made in this session. Only that scan can be cleaned from; a scan saved by
+    // an earlier session or the CLI is shown read-only.
+    liveScanId: null,
     lastView: null,
   };
 
@@ -332,8 +336,8 @@
     if (!list.length) return html + '<div class="empty"><p>No cleanups yet.</p></div>';
     html += '<div class="act-list">' + list.map((e) => {
       const restorable = (e.records || []).some((r) => !r.restored);
-      const status = { completed: 'Completed', partial: 'Partly done', failed: 'Failed', restored: 'Restored', partiallyRestored: 'Partly restored' }[e.status] || e.status;
-      const cls = e.status === 'restored' || e.status === 'partiallyRestored' ? 'restored' : e.status;
+      const status = { incomplete: 'Incomplete (interrupted)', completed: 'Completed', partial: 'Partly done', failed: 'Failed', restored: 'Restored', partiallyRestored: 'Partly restored' }[e.status] || e.status;
+      const cls = e.status === 'restored' || e.status === 'partiallyRestored' ? 'restored' : e.status === 'incomplete' ? 'partial' : e.status;
       return '<div class="act w-card"><span class="act-icon ' + esc(cls) + '">' + icon(cls === 'restored' ? 'undo' : cls === 'completed' ? 'trash' : 'alert') + '</span>' +
         '<div class="act-main"><b>' + esc(e.title) + '</b><span>' + new Date(e.date * 1000).toLocaleString() + ' · ' + esc(status) + ' · from the ' + esc(e.source === 'cli' ? 'command line' : 'app') + '</span>' +
         (e.records && e.records.length ? '<details><summary>' + plural(e.records.length, 'path') + '</summary><ul>' + e.records.map((r) =>
@@ -428,14 +432,27 @@
 
   function closeModal() {
     if (state.busy) return;
+    state.pending = [];
+    state.pendingScanId = null;
     $('#modal').hidden = true;
     $('#modal').innerHTML = '';
   }
 
+  const SCAN_MAX_AGE = 3600;
+
   function openReview(list, heading) {
     list = list.filter(selectable);
     if (!list.length) { toast('Nothing selected.'); return; }
+    if (!api.demo && state.scan) {
+      const stale = state.scan.id !== state.liveScanId || (Date.now() / 1000 - state.scan.date) > SCAN_MAX_AGE;
+      if (stale) {
+        toast('Scan again before cleaning: this list is from an earlier scan. Scanning now…');
+        doScan();
+        return;
+      }
+    }
     state.pending = list;
+    state.pendingScanId = state.scan ? state.scan.id : null;
     const total = sum(list);
     const notSafe = list.filter((i) => i.risk !== 'safe');
     const rows = CATS.map((c) => {
@@ -492,7 +509,7 @@
     showProgress(list.length);
     let report;
     try {
-      report = await api.clean(list.map((i) => i.id));
+      report = await api.clean(list.map((i) => i.id), state.pendingScanId);
     } catch (e) {
       state.busy = false;
       openModal('<div class="sheet center" role="dialog" aria-modal="true"><h3>Cleanup failed</h3><p class="sub">' + esc(errText(e)) + '</p>' +
@@ -508,6 +525,7 @@
     (report.movedIds || []).forEach((id) => state.selected.delete(id));
     state.busy = false;
     state.pending = [];
+    state.pendingScanId = null;
     render();
     showResult(report);
   }
@@ -518,6 +536,14 @@
     render();
     try {
       const scan = await api.scan();
+      state.liveScanId = scan.id || null;
+      // A review opened on the previous scan no longer matches what's shown.
+      if (state.pending.length && !state.busy) {
+        state.pending = [];
+        state.pendingScanId = null;
+        closeModal();
+        toast('The scan finished while the review was open. Review your selection again.');
+      }
       setScan(scan, true);
       if (!state.disk) state.disk = await api.disk();
     } catch (e) {

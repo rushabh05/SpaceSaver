@@ -115,21 +115,40 @@ jobs:
           & $exe clean -c projects
           if (-not (Test-Path $nm)) { throw 'The dry run removed files' }
 
-          # Real run on project artifacts only, then restore from the Recycle Bin.
+          # Real run on project artifacts only, then restore from the Recycle Bin. A time zone
+          # far from UTC checks that Restore matches the bin's deletion times correctly.
+          Set-TimeZone -Id 'Tokyo Standard Time'
           $report = (& $exe clean --yes -c projects --json) -join "`n" | ConvertFrom-Json
+          $cleanExit = $LASTEXITCODE
           "Items moved: $($report.items.Count), $([math]::Round($report.bytes / 1MB, 1)) MB. Errors: $($report.errors -join '; ')"
+          if ($cleanExit -ne 0) { throw "clean --yes exited with $cleanExit" }
           if (Test-Path $nm) { throw 'node_modules was not moved to the Recycle Bin' }
           if (-not $report.entry) { throw 'No activity entry was written' }
           & $exe activity
           & $exe restore $report.entry.id
           if ($LASTEXITCODE -ne 0) { throw 'restore failed' }
           if (-not (Test-Path (Join-Path $nm 'left-pad\blob.bin'))) { throw 'Restore did not bring node_modules back' }
+          & $exe activity
+
+          # Bad arguments are refused with exit code 2 before anything is scanned or moved.
+          foreach ($bad in @(@('clean', '--yes', 'projects'), @('status', '--yes'), @('restore'), @('restore', 'a', 'b'), @('scan', '--bogus'))) {
+            & $exe @bad
+            if ($LASTEXITCODE -ne 2) { throw "spacesaver $($bad -join ' ') should exit 2, got $LASTEXITCODE" }
+          }
+          if (-not (Test-Path (Join-Path $nm 'left-pad\blob.bin'))) { throw 'A refused command moved files' }
           & $exe status
 
       - uses: actions/upload-artifact@v7
         with:
           name: spacesaver-cli
           path: windows/target/release/spacesaver.exe
+          if-no-files-found: error
+
+      # The lock file CI resolved (the whole workspace, app included), to commit later.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Cargo.lock
+          path: windows/Cargo.lock
           if-no-files-found: error
 
   app:

@@ -26,6 +26,8 @@ pub struct ScanEnv {
     pub hf_home: PathBuf,
     /// `%OLLAMA_MODELS%` or `~\.ollama\models`
     pub ollama_models: PathBuf,
+    /// `%DENO_DIR%` or `%LOCALAPPDATA%\deno`
+    pub deno_dir: PathBuf,
     /// `%ANDROID_HOME%`, `%ANDROID_SDK_ROOT%` or `%LOCALAPPDATA%\Android\Sdk`
     pub android_sdk: PathBuf,
     /// Folders searched for projects (default: the user profile).
@@ -61,6 +63,7 @@ impl ScanEnv {
             go_mod: home.join("go").join("pkg").join("mod"),
             hf_home: home.join(".cache").join("huggingface"),
             ollama_models: home.join(".ollama").join("models"),
+            deno_dir: local.join("deno"),
             android_sdk: local.join("Android").join("Sdk"),
             project_roots: vec![home.clone()],
             data_dir: None,
@@ -102,6 +105,7 @@ impl ScanEnv {
             .unwrap_or(env.go_mod);
         env.hf_home = var_path("HF_HOME").unwrap_or(env.hf_home);
         env.ollama_models = var_path("OLLAMA_MODELS").unwrap_or(env.ollama_models);
+        env.deno_dir = var_path("DENO_DIR").unwrap_or_else(|| env.local.join("deno"));
         env.android_sdk = var_path("ANDROID_HOME")
             .or_else(|| var_path("ANDROID_SDK_ROOT"))
             .unwrap_or_else(|| env.local.join("Android").join("Sdk"));

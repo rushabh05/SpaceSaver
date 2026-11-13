@@ -282,8 +282,12 @@ pub fn location_rules(env: &ScanEnv) -> Vec<LocationRule> {
                "Compiled package cache.", "Equivalent to `go clean -cache`.").done(),
         R::new("pkg.go.mod", PackageCaches, "Go module cache", vec![env.go_mod.clone()], Risk::Review,
                "Downloaded Go modules.", "Equivalent to `go clean -modcache`; modules re-download on build.").done(),
-        R::new("pkg.deno", PackageCaches, "Deno cache", vec![local.join("deno")], Risk::Safe,
-               "Deno's remote module cache.", "Re-downloaded on run.").done(),
+        // Only the cache folders: DENO_DIR also holds Deno KV databases and localStorage
+        // (`location_data`), which are user data.
+        R::new("pkg.deno", PackageCaches, "Deno cache",
+               ["deps", "remote", "gen", "npm", "registries"].iter().map(|d| env.deno_dir.join(d)).collect(), Risk::Safe,
+               "Deno's caches of remote modules, npm packages, compiled code and registry data.",
+               "Re-downloaded or rebuilt the next time Deno runs.").done(),
         R::new("pkg.nodegyp", PackageCaches, "node-gyp headers", vec![local.join(r"node-gyp\Cache")], Risk::Safe,
                "Node.js headers for building native modules.", "Re-downloaded when needed.").done(),
         R::new("pkg.playwright", PackageCaches, "Playwright browsers", vec![local.join("ms-playwright")], Risk::Review,
@@ -319,7 +323,9 @@ pub fn location_rules(env: &ScanEnv) -> Vec<LocationRule> {
                "A model or dataset snapshot downloaded by transformers, diffusers or huggingface-cli.",
                "Re-downloaded from the Hub the next time code loads it.")
             .each(Label::HuggingFace).done(),
-        R::new("ai.ollama", AiModels, "Ollama models", vec![env.ollama_models.clone()], Risk::Review,
+        // Only Ollama's own folders, in case OLLAMA_MODELS points somewhere shared.
+        R::new("ai.ollama", AiModels, "Ollama models",
+               vec![env.ollama_models.join("blobs"), env.ollama_models.join("manifests")], Risk::Review,
                "Model weights pulled with `ollama pull`.", "`ollama pull <model>` downloads them again.")
             .running("Ollama", &["ollama", "ollama app"]).done(),
         R::new("ai.lmstudio", AiModels, "LM Studio", vec![home.join(r".lmstudio\models\*\*"), home.join(r".cache\lm-studio\models\*\*")],

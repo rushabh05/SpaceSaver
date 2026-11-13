@@ -92,53 +92,81 @@ pub fn running_processes() -> HashSet<String> {
 pub struct RecycleBinInfo {
     pub drive: String,
     /// Largest size the Recycle Bin keeps. Anything bigger would be deleted permanently,
-    /// so the cleaner refuses it.
-    pub max_bytes: Option<u64>,
-    /// "Don't move files to the Recycle Bin" is set for this drive.
+    /// so the cleaner refuses it, and it keeps the total of one run under it too.
+    pub max_bytes: u64,
+    /// "Don't move files to the Recycle Bin" is set for this drive, by the user or by policy.
     pub disabled: bool,
 }
 
-/// Reads the Recycle Bin size limit and "delete immediately" setting for the drive holding
-/// `path`, from `HKCU\...\Explorer\BitBucket\Volume\{GUID}`. Without a per-volume setting the
-/// limit falls back to 5% of the drive.
+const EXPLORER_POLICIES: &str = r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer";
+
+/// Reads the Recycle Bin settings for the drive root `drive` (`C:\`):
+///
+/// * the per-volume `MaxCapacity` (MB) and `NukeOnDelete` values under
+///   `HKCU\...\Explorer\BitBucket\Volume\{GUID}` (without them the limit falls back to 5% of
+///   the drive, and the bin counts as on);
+/// * the `NoRecycleFiles` and `RecycleBinSize` (percent of the drive) policies under
+///   `HKLM` and `HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer`, which
+///   override them.
+///
+/// Fails when the drive's size or volume can't be read (a network drive, for example). The
+/// cleaner then refuses everything on that drive rather than risk a permanent delete.
 #[cfg(windows)]
-pub fn recycle_bin_info(path: &Path) -> Option<RecycleBinInfo> {
+pub fn recycle_bin_info(drive: &str) -> Result<RecycleBinInfo, String> {
     use windows_sys::Win32::Storage::FileSystem::GetVolumeNameForVolumeMountPointW;
-    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
     use winreg::RegKey;
 
-    let root = drive_of(path)?;
-    let disk = disk_info(&root);
-    let fallback = disk.as_ref().map(|d| d.total / 20);
+    let root = drive_of(Path::new(drive)).ok_or_else(|| format!("{drive} is not a drive"))?;
+    let disk = disk_info(&root).ok_or_else(|| format!("couldn't read the size of {root}"))?;
 
     let mount = wide(&root);
     let mut buf = [0u16; 128];
     // SAFETY: `mount` is NUL-terminated and `buf` has the length we pass.
     let ok = unsafe { GetVolumeNameForVolumeMountPointW(mount.as_ptr(), buf.as_mut_ptr(), buf.len() as u32) };
-    let mut max_bytes = fallback;
+    if ok == 0 {
+        return Err(format!("couldn't identify the volume behind {root}"));
+    }
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    let volume = String::from_utf16_lossy(&buf[..len]);
+    let guid = match (volume.find('{'), volume.find('}')) {
+        (Some(start), Some(end)) if end > start => volume[start..=end].to_string(),
+        _ => return Err(format!("unexpected volume name for {root}")),
+    };
+
+    let mut max_bytes = disk.total / 20;
     let mut disabled = false;
-    if ok != 0 {
-        let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-        let volume = String::from_utf16_lossy(&buf[..len]);
-        if let (Some(start), Some(end)) = (volume.find('{'), volume.find('}')) {
-            if end > start {
-                let guid = &volume[start..=end];
-                let sub = format!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket\Volume\{guid}");
-                if let Ok(k) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(sub) {
-                    if let Ok(mb) = k.get_value::<u32, _>("MaxCapacity") {
-                        max_bytes = Some(u64::from(mb) * 1024 * 1024);
-                    }
-                    if let Ok(nuke) = k.get_value::<u32, _>("NukeOnDelete") {
-                        disabled = nuke == 1;
-                    }
-                }
-            }
+    let sub = format!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket\Volume\{guid}");
+    if let Ok(k) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(sub) {
+        if let Ok(mb) = k.get_value::<u32, _>("MaxCapacity") {
+            max_bytes = u64::from(mb) * 1024 * 1024;
+        }
+        if let Ok(nuke) = k.get_value::<u32, _>("NukeOnDelete") {
+            disabled = nuke != 0;
         }
     }
-    Some(RecycleBinInfo { drive: root, max_bytes, disabled })
+
+    // Group Policy wins over the user's own settings. With both hives set, the stricter applies.
+    let mut policy_percent: Option<u64> = None;
+    for hive in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+        let Ok(k) = RegKey::predef(hive).open_subkey(EXPLORER_POLICIES) else { continue };
+        if let Ok(v) = k.get_value::<u32, _>("NoRecycleFiles") {
+            if v != 0 {
+                disabled = true;
+            }
+        }
+        if let Ok(pct) = k.get_value::<u32, _>("RecycleBinSize") {
+            let pct = u64::from(pct.min(100));
+            policy_percent = Some(policy_percent.map_or(pct, |p: u64| p.min(pct)));
+        }
+    }
+    if let Some(pct) = policy_percent {
+        max_bytes = disk.total / 100 * pct;
+    }
+    Ok(RecycleBinInfo { drive: root, max_bytes, disabled })
 }
 
 #[cfg(not(windows))]
-pub fn recycle_bin_info(_path: &Path) -> Option<RecycleBinInfo> {
-    None
+pub fn recycle_bin_info(drive: &str) -> Result<RecycleBinInfo, String> {
+    Err(format!("Recycle Bin settings for {drive} can only be read on Windows"))
 }

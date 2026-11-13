@@ -21,9 +21,9 @@ windows/
 | Category | Examples | Risk |
 | --- | --- | --- |
 | Project Artifacts | 46 rules ported from the macOS app: `node_modules` + `package.json`, `target` + `Cargo.toml`/`pom.xml`, `bin`/`obj` + `*.csproj`/`*.fsproj`, `.venv` + `pyproject.toml`/`requirements.txt`, `build`/`.gradle` + `build.gradle(.kts)`, `.next` + `next.config.*`… | Safe in dormant projects; Review when active, with no lockfile, or for venvs and `dist` |
-| Package Caches | npm (`%LOCALAPPDATA%\npm-cache`), npx, pnpm store, Yarn, Bun, pip, uv, Poetry, NuGet `v3-cache`/`plugins-cache`, NuGet global packages, Gradle, Maven, Cargo registry, Go build and module caches, Deno, node-gyp, Playwright, Puppeteer, Cypress, Electron, Android AVDs and system images | Safe, or Review for big shared stores (pnpm, NuGet packages, Maven, Go modules, Playwright, Android) |
+| Package Caches | npm (`%LOCALAPPDATA%\npm-cache`), npx, pnpm store, Yarn, Bun, pip, uv, Poetry, NuGet `v3-cache`/`plugins-cache`, NuGet global packages, Gradle, Maven, Cargo registry, Go build and module caches, Deno (only `deps`, `remote`, `gen`, `npm` and `registries` in `DENO_DIR`, never its KV databases or `location_data`), node-gyp, Playwright, Puppeteer, Cypress, Electron, Android AVDs and system images | Safe, or Review for big shared stores (pnpm, NuGet packages, Maven, Go modules, Playwright, Android) |
 | IDEs & Editors | VS Code, VS Code Insiders, Cursor, Windsurf, VSCodium (`Cache`, `CachedData`, `CachedExtensionVSIXs`, `Code Cache`, `GPUCache`, `logs` under `%APPDATA%\<Editor>`), JetBrains `%LOCALAPPDATA%\JetBrains\*\caches` per IDE version, Android Studio | Safe; blocked while the editor is running |
-| AI Models | Hugging Face (per model or dataset), Ollama, LM Studio (per model), PyTorch Hub, Whisper | Review |
+| AI Models | Hugging Face (per model or dataset), Ollama (`blobs` and `manifests` in the models folder), LM Studio (per model), PyTorch Hub, Whisper | Review |
 | WSL & Docker | WSL distro disks (from the `Lxss` registry key and `%LOCALAPPDATA%\Packages\*\LocalState`, `%LOCALAPPDATA%\wsl\*`) and Docker Desktop's disk (`%LOCALAPPDATA%\Docker\wsl\...`) | Manual: never deleted |
 | System Junk | `%LOCALAPPDATA%\CrashDumps`, top-level `%TEMP%` entries nothing has modified for 7 days | Safe |
 
@@ -44,28 +44,49 @@ double-counted or followed out of the folder.
   every top-level folder in it (Desktop, Documents, Downloads, OneDrive…); `AppData`,
   `AppData\Local`, `AppData\Roaming` and `%TEMP%` themselves; `.ssh`, `.aws`, `.azure`, `.gnupg`,
   `.kube`, `.docker` and Windows credential folders; anything inside a `.git` folder; any reparse
-  point; and any path that isn't inside the user profile or `%TEMP%` once junctions and 8.3 short
-  names in its parent are resolved. Comparison is case-insensitive and `\\?\` prefixes, `/`, `..`
-  and trailing dots are normalised first. The scanner runs the same checks, so the UI never
-  offers something the cleaner would refuse.
+  point; and any path that isn't inside the user profile or `%TEMP%`. The rules run on the path
+  as given and again on its fully resolved form (junctions in its parents and 8.3 short names
+  anywhere, the last component included, so `~\AppData\Roaming\MICROS~1` is judged as
+  `Microsoft`). Comparison is case-insensitive and `\\?\` prefixes, `/`, `..` and trailing dots
+  are normalised first. The scanner runs the same checks, so the UI never offers something the
+  cleaner would refuse.
+* **The app only cleans from its own fresh scan.** It cleans items from the scan it made in
+  this session, never from `last-scan.json` (which it only shows), refuses a scan more than an
+  hour old ("Scan again before cleaning"), and refuses if the review dialog was opened on a
+  different scan than the current one.
 * **Recycle Bin first.** Items go to the Recycle Bin (via the `trash` crate), never deleted
-  outright. Items bigger than the drive's Recycle Bin limit, or on a drive where the Recycle Bin
-  is turned off, are refused, because Windows would delete them permanently. Space is freed when
-  the Recycle Bin is emptied.
+  outright. The bin's settings are read for the drive of each path (once per drive and run):
+  the per-volume size limit and "don't move files to the Recycle Bin", and the `NoRecycleFiles`
+  and `RecycleBinSize` policies under `HKLM`/`HKCU\...\Policies\Explorer`, which override them.
+  An item is refused if the bin is off, if the settings can't be read (network drives
+  included), if it is bigger than the limit, or if it would take the total this run moved to
+  that drive over the limit, because Windows would then delete permanently or push earlier
+  items out. Space is freed when the Recycle Bin is emptied.
 * **Undo.** Each cleanup is written to `%LOCALAPPDATA%\SpaceSaver\activity.json` with every
-  original path. Restore finds those paths in the Recycle Bin and puts them back, and refuses to
-  overwrite anything that has appeared there since.
+  original path and when it moved: the entry is written before the first move and updated
+  after each one, so an interrupted run still leaves a record ("Incomplete") that can be
+  restored. If the log can't be written nothing (more) is moved, and the CLI exits 1 without an
+  undo id. Writes are locked (`activity.json.lock`) so the CLI and app can't overwrite each
+  other, and a log that can't be read is renamed to `activity.json.corrupt-<time>`, never
+  overwritten. Restore finds each path in the Recycle Bin, picking the item deleted at the
+  recorded time rather than another copy from the same path, and refuses to overwrite anything
+  that has appeared there since.
 * **Manual and command items are never run.** WSL and Docker disks come with copyable steps:
   `wsl --shutdown`, then `Optimize-VHD -Path <file> -Mode Full` (Hyper-V module, elevated) or the
   `diskpart` sequence (`select vdisk file=…`, `attach vdisk readonly`, `compact vdisk`,
   `detach vdisk`), and `wsl --manage <distro> --set-sparse true` so the disk shrinks by itself.
+  Paths and distro names in the PowerShell lines are single-quoted literals, so a folder name
+  can't inject code into a pasted command.
+* **Scans don't touch the network.** A `.git` file whose `gitdir:` points at a UNC path, and WSL
+  registry entries with a UNC base path, are ignored, so a scan never makes Windows connect to
+  a server and offer the user's credentials.
 
 ## Command line
 
 ```text
 spacesaver status [--json]                 disk space, last scan, activity
 spacesaver scan [--json] [-c <category>] [--root <folder>]...
-spacesaver clean [--yes] [--include-review] [-c <category>] [--json]
+spacesaver clean [--yes] [--include-review] [-c <category>] [--root <folder>]... [--json]
                                            dry run unless --yes
 spacesaver activity [--json]
 spacesaver restore <id>                    an activity id or a unique prefix of one
@@ -73,7 +94,9 @@ spacesaver help
 ```
 
 Categories: `projects`, `caches`, `ide`, `ai`, `wsl`, `junk`. `spacesaver scan -c wsl` prints the
-full compaction steps. Data lives in `%LOCALAPPDATA%\SpaceSaver` (set `SPACESAVER_DATA_DIR` to
+full compaction steps. Unknown options, options a command doesn't take and stray arguments are
+refused with exit code 2 (`clean --yes projects` does nothing); a relative `--root` is taken
+from the current folder. `clean --yes` and `restore` exit 1 when anything failed. Data lives in `%LOCALAPPDATA%\SpaceSaver` (set `SPACESAVER_DATA_DIR` to
 use another folder).
 
 ## Build
@@ -111,11 +134,13 @@ python3 -m http.server -d windows/app/ui 8000   # then open http://localhost:800
   tried on Windows (the same core code is covered by the tests and the CLI smoke test), and the
   installer hasn't been run. Every screen was checked in a browser with demo data.
 * The per-user installer's default folder and the data folder are both
-  `%LOCALAPPDATA%\SpaceSaver`. They don't share any file names, but what the uninstaller does
-  to that folder hasn't been checked; one of them should move.
+  `%LOCALAPPDATA%\SpaceSaver`. They don't share any file names. The uninstaller's "Delete the
+  application data" option removes SpaceSaver's data files there (an NSIS hook in
+  `app/nsis/hooks.nsh`), but that hasn't been tried by hand yet.
 * No code signing, so SmartScreen will warn about the installer. No auto-update, no release
   pipeline (CI artifacts only).
-* No `Cargo.lock` is committed yet; CI resolves the latest compatible crates.
+* No `Cargo.lock` is committed yet (it is in `.gitignore`); CI resolves the latest compatible
+  crates and uploads the lock file it used as the `Cargo.lock` artifact.
 * Not ported from the macOS app yet: Storage Map, Large Files, Duplicates, Old Downloads, browser
   and chat-app caches, AI session logs and the secrets audit, the MCP server, scheduling, the
   "make room for X GB" planner, custom rules, settings and exclusions, free-space history.
@@ -123,5 +148,8 @@ python3 -m http.server -d windows/app/ui 8000   # then open http://localhost:800
 * Running-app detection covers editors, JetBrains IDEs, Ollama, LM Studio, Cargo and the
   Android emulator only.
 * The Recycle Bin size limit falls back to 5% of the drive when Windows hasn't stored a
-  per-drive setting, which may be stricter than the real limit.
+  per-drive setting, which may be stricter than the real limit. What is already in the bin
+  isn't counted, so a big cleanup can still make Windows drop the user's oldest recycled files.
+* Restore can still race a tool that recreates the folder in the moment between its "nothing
+  is there" check and the shell's move; the shell then merges the two.
 * Sizes are logical, not allocated (compressed or sparse files are counted at full size).

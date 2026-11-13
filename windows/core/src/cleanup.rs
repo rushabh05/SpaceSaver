@@ -8,19 +8,49 @@ use crate::paths;
 use crate::safety::{SafetyError, SafetyGuard};
 use crate::system::RecycleBinInfo;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+/// Seconds of slack when matching a Recycle Bin item's deletion time to the time SpaceSaver
+/// recorded around the move.
+const RESTORE_SLACK_SECS: i64 = 2;
+
+/// One path to put back, with the window in which SpaceSaver moved it to the bin.
+#[derive(Debug, Clone)]
+pub struct RestoreRequest {
+    pub original: PathBuf,
+    /// Unix seconds just before the move (0 for records written by older versions).
+    pub deleted_at: i64,
+    /// Unix seconds just after the move returned (0 when unknown).
+    pub deleted_until: i64,
+}
 
 /// Where removed things go. The real one is the Windows Recycle Bin; tests use a fake.
 pub trait Trasher {
     /// Moves `path` to the bin.
     fn trash(&self, path: &Path) -> Result<(), String>;
     /// Puts each path back where it was. One result per input, in order.
-    fn restore(&self, originals: &[PathBuf]) -> Vec<Result<(), String>>;
+    fn restore(&self, requests: &[RestoreRequest]) -> Vec<Result<(), String>>;
 }
 
 /// The Windows Recycle Bin, through the `trash` crate.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemTrash;
+
+/// Picks the bin item SpaceSaver moved: among items with the same original path, the earliest
+/// deleted at or after the recorded time (within the recorded window when there is one). Records
+/// from before deletion times were kept fall back to the newest item.
+pub fn pick_bin_item(candidates: &[(usize, i64)], req: &RestoreRequest) -> Option<usize> {
+    if req.deleted_at <= 0 {
+        return candidates.iter().max_by_key(|(_, t)| *t).map(|(i, _)| *i);
+    }
+    candidates
+        .iter()
+        .filter(|(_, t)| *t >= req.deleted_at - RESTORE_SLACK_SECS)
+        .filter(|(_, t)| req.deleted_until <= 0 || *t <= req.deleted_until + RESTORE_SLACK_SECS)
+        .min_by_key(|(_, t)| *t)
+        .map(|(i, _)| *i)
+}
 
 impl Trasher for SystemTrash {
     fn trash(&self, path: &Path) -> Result<(), String> {
@@ -28,33 +58,63 @@ impl Trasher for SystemTrash {
     }
 
     #[cfg(windows)]
-    fn restore(&self, originals: &[PathBuf]) -> Vec<Result<(), String>> {
+    fn restore(&self, requests: &[RestoreRequest]) -> Vec<Result<(), String>> {
         let items = match trash::os_limited::list() {
             Ok(items) => items,
             Err(e) => {
-                return originals.iter().map(|_| Err(format!("Couldn't read the Recycle Bin: {e}"))).collect();
+                return requests.iter().map(|_| Err(format!("Couldn't read the Recycle Bin: {e}"))).collect();
             }
         };
-        originals
+        requests
             .iter()
-            .map(|original| {
-                let want = paths::key_of(original);
-                let newest = items
+            .map(|req| {
+                let want = paths::key_of(&req.original);
+                let candidates: Vec<(usize, i64)> = items
                     .iter()
-                    .filter(|it| paths::key_of(&it.original_path()) == want)
-                    .max_by_key(|it| it.time_deleted)
-                    .cloned();
-                match newest {
-                    Some(item) => trash::os_limited::restore_all([item]).map_err(|e| e.to_string()),
-                    None => Err("Not in the Recycle Bin any more (it may have been emptied)".to_string()),
+                    .enumerate()
+                    .filter(|(_, it)| paths::key_of(&it.original_path()) == want)
+                    .map(|(i, it)| (i, it.time_deleted))
+                    .collect();
+                match pick_bin_item(&candidates, req) {
+                    Some(i) => trash::os_limited::restore_all([items[i].clone()]).map_err(|e| e.to_string()),
+                    None if candidates.is_empty() => {
+                        Err("Not in the Recycle Bin any more (it may have been emptied)".to_string())
+                    }
+                    None => Err(
+                        "The Recycle Bin has other items from this path, but not the one SpaceSaver moved (it may have been emptied)"
+                            .to_string(),
+                    ),
                 }
             })
             .collect()
     }
 
     #[cfg(not(windows))]
-    fn restore(&self, originals: &[PathBuf]) -> Vec<Result<(), String>> {
-        originals.iter().map(|_| Err("Restore is only supported on Windows".to_string())).collect()
+    fn restore(&self, requests: &[RestoreRequest]) -> Vec<Result<(), String>> {
+        requests.iter().map(|_| Err("Restore is only supported on Windows".to_string())).collect()
+    }
+}
+
+/// Recycle Bin settings, per drive. The cleaner asks once per drive and run.
+pub trait RecycleBinSettings {
+    /// The Recycle Bin `path` would go to (its drive root, `C:\`), or `None` when it has none
+    /// (a network path), so Windows would delete it permanently.
+    fn bin_of(&self, path: &Path) -> Option<String> {
+        crate::system::drive_of(path)
+    }
+
+    /// The settings of the Recycle Bin on `drive`. An error means they couldn't be read, and
+    /// the cleaner then refuses everything on that drive.
+    fn settings(&self, drive: &str) -> Result<RecycleBinInfo, String>;
+}
+
+/// The real settings, from the registry.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemRecycleBin;
+
+impl RecycleBinSettings for SystemRecycleBin {
+    fn settings(&self, drive: &str) -> Result<RecycleBinInfo, String> {
+        crate::system::recycle_bin_info(drive)
     }
 }
 
@@ -115,8 +175,12 @@ pub struct CleanReport {
     pub bytes: u64,
     pub skipped: Vec<Skipped>,
     pub errors: Vec<String>,
-    /// The activity entry written for this run (not for dry runs).
+    /// The activity entry written for this run (not for dry runs). `None` when the activity
+    /// log couldn't be written, so there is nothing to restore by id.
     pub entry: Option<ActivityEntry>,
+    /// Set when the activity log couldn't be written. The run stops at that point; anything
+    /// listed in `items` did move and can only be restored from the Recycle Bin by hand.
+    pub log_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -131,31 +195,50 @@ pub struct Cleaner<'a> {
     guard: &'a SafetyGuard,
     trash: &'a dyn Trasher,
     log: &'a ActivityLog,
-    bin: Option<RecycleBinInfo>,
+    bins: Option<&'a dyn RecycleBinSettings>,
 }
 
 impl<'a> Cleaner<'a> {
+    /// A cleaner without Recycle Bin checks (tests). The CLI and the app always add them with
+    /// [`Cleaner::with_recycle_bin`].
     pub fn new(guard: &'a SafetyGuard, trash: &'a dyn Trasher, log: &'a ActivityLog) -> Self {
-        Cleaner { guard, trash, log, bin: None }
+        Cleaner { guard, trash, log, bins: None }
     }
 
-    /// Refuse items the Recycle Bin can't hold (Windows would delete them permanently).
-    pub fn with_recycle_bin(mut self, bin: Option<RecycleBinInfo>) -> Self {
-        self.bin = bin;
+    /// Refuse items the Recycle Bin can't hold (Windows would delete them permanently): on a
+    /// drive whose bin is off or whose settings can't be read, bigger than the bin, or that
+    /// would take this run's total on that drive past the bin's limit.
+    pub fn with_recycle_bin(mut self, bins: &'a dyn RecycleBinSettings) -> Self {
+        self.bins = Some(bins);
         self
     }
 
     /// Moves every selectable item to the Recycle Bin. Each path is validated by the safety
-    /// guard first. Manual and command items are never run. Logs one activity entry.
+    /// guard first. Manual and command items are never run.
+    ///
+    /// The run's activity entry is written before the first move and updated after every
+    /// moved path, so an interrupted run still leaves a record that can be restored. If the
+    /// log can't be written, nothing more is moved and `log_error` is set.
     pub fn clean(&self, items: &[CleanupItem], opts: &CleanOptions, progress: &mut dyn FnMut(&CleanProgress)) -> CleanReport {
         let mut report = CleanReport { dry_run: opts.dry_run, ..Default::default() };
-        let mut records: Vec<TrashRecord> = Vec::new();
         let total = items.len();
+        let mut bin_cache: HashMap<String, Result<RecycleBinInfo, String>> = HashMap::new();
+        let mut bin_used: HashMap<String, u64> = HashMap::new();
+        let mut entry: Option<ActivityEntry> = None;
+        let mut log_error: Option<String> = None;
+        let first_title = opts.title.clone().unwrap_or_else(|| match items {
+            [one] => one.title.clone(),
+            many => format!("{} items", many.len()),
+        });
 
         for (index, item) in items.iter().enumerate() {
             progress(&CleanProgress { done: index, total, current: item.title.clone(), bytes: report.bytes });
             let skip = |reason: String| Skipped { id: item.id.clone(), title: item.title.clone(), reason };
 
+            if log_error.is_some() {
+                report.skipped.push(skip("Not attempted: the activity log couldn't be written".to_string()));
+                continue;
+            }
             if let Some(reason) = &item.blocked_reason {
                 report.skipped.push(skip(reason.clone()));
                 continue;
@@ -171,56 +254,87 @@ impl<'a> Cleaner<'a> {
                     continue;
                 }
             }
-            if let Some(bin) = &self.bin {
-                if bin.disabled {
-                    report.skipped.push(skip(format!(
-                        "The Recycle Bin is turned off for {}, so Windows would delete it permanently",
-                        bin.drive
-                    )));
-                    continue;
-                }
-                if let Some(max) = bin.max_bytes {
-                    if item.size > max {
-                        report.skipped.push(skip(format!(
-                            "Too big for the Recycle Bin ({} limit), so Windows would delete it permanently",
-                            format_bytes(max)
-                        )));
-                        continue;
+
+            // Validate every path and work out what each weighs before anything moves.
+            let mut planned: Vec<(PathBuf, u64)> = Vec::new();
+            let mut failed = false;
+            for raw in &item.paths {
+                match self.guard.validate(Path::new(raw)) {
+                    Ok(path) => {
+                        let bytes = if item.paths.len() == 1 { item.size } else { fsutil::measure(&path).bytes };
+                        planned.push((path, bytes));
                     }
+                    Err(SafetyError::Missing(_)) => {} // already gone
+                    Err(e) => {
+                        report.errors.push(format!("{}: {e}", item.title));
+                        failed = true;
+                    }
+                }
+            }
+            if planned.is_empty() {
+                if !failed {
+                    report.skipped.push(skip("Already gone".to_string()));
+                }
+                continue;
+            }
+            if let Some(bins) = self.bins {
+                if let Err(reason) = reserve_bin_space(bins, &planned, &mut bin_cache, &mut bin_used) {
+                    report.skipped.push(skip(reason));
+                    continue;
                 }
             }
 
             let mut moved_paths = Vec::new();
             let mut moved_bytes = 0u64;
-            let mut failed = false;
-            for raw in &item.paths {
-                let path = match self.guard.validate(Path::new(raw)) {
-                    Ok(p) => p,
-                    Err(SafetyError::Missing(_)) => continue, // already gone
-                    Err(e) => {
-                        report.errors.push(format!("{}: {e}", item.title));
-                        failed = true;
-                        continue;
-                    }
-                };
-                let bytes = if item.paths.len() == 1 { item.size } else { fsutil::measure(&path).bytes };
+            for (path, bytes) in planned {
                 let shown = path.to_string_lossy().to_string();
                 if opts.dry_run {
                     moved_paths.push(shown);
                     moved_bytes += bytes;
                     continue;
                 }
+                if entry.is_none() {
+                    let fresh = ActivityEntry {
+                        id: new_id(),
+                        date: fsutil::now(),
+                        title: first_title.clone(),
+                        source: opts.source.clone(),
+                        bytes: 0,
+                        records: Vec::new(),
+                        status: ActivityStatus::Incomplete,
+                        errors: Vec::new(),
+                    };
+                    if let Err(e) = self.log.append(fresh.clone()) {
+                        log_error = Some(format!("Couldn't write the activity log, so nothing was moved: {e}"));
+                        failed = true;
+                        break;
+                    }
+                    entry = Some(fresh);
+                }
+                let deleted_at = fsutil::now();
                 match self.trash.trash(&path) {
                     Ok(()) => {
-                        records.push(TrashRecord {
+                        let deleted_until = fsutil::now();
+                        let current = entry.as_mut().expect("entry written before the first move");
+                        current.records.push(TrashRecord {
                             original: shown.clone(),
                             title: item.title.clone(),
                             category: item.category,
                             bytes,
                             restored: false,
+                            deleted_at,
+                            deleted_until,
                         });
-                        moved_paths.push(shown);
+                        current.bytes += bytes;
+                        moved_paths.push(shown.clone());
                         moved_bytes += bytes;
+                        if let Err(e) = self.log.update(current) {
+                            log_error = Some(format!(
+                                "Couldn't update the activity log after moving {shown}, so SpaceSaver stopped there: {e}"
+                            ));
+                            failed = true;
+                            break;
+                        }
                     }
                     Err(e) => {
                         report.errors.push(format!("{} ({shown}): {e}", item.title));
@@ -239,38 +353,56 @@ impl<'a> Cleaner<'a> {
                     size: moved_bytes,
                     paths: moved_paths,
                 });
-            } else if !failed {
-                report.skipped.push(skip("Already gone".to_string()));
             }
         }
         progress(&CleanProgress { done: total, total, current: String::new(), bytes: report.bytes });
 
-        if !opts.dry_run && (!records.is_empty() || !report.errors.is_empty()) {
-            let status = if records.is_empty() {
-                ActivityStatus::Failed
-            } else if report.errors.is_empty() {
-                ActivityStatus::Completed
-            } else {
-                ActivityStatus::Partial
-            };
+        if !opts.dry_run {
             let title = opts.title.clone().unwrap_or_else(|| match report.items.as_slice() {
                 [one] => one.title.clone(),
                 many => format!("{} items", many.len()),
             });
-            let entry = ActivityEntry {
-                id: new_id(),
-                date: fsutil::now(),
-                title,
-                source: opts.source.clone(),
-                bytes: report.bytes,
-                records,
-                status,
-                errors: report.errors.clone(),
-            };
-            if let Err(e) = self.log.append(entry.clone()) {
-                report.errors.push(format!("Couldn't write the activity log: {e}"));
+            match entry.take() {
+                Some(mut done) => {
+                    done.status = if done.records.is_empty() {
+                        ActivityStatus::Failed
+                    } else if report.errors.is_empty() && log_error.is_none() {
+                        ActivityStatus::Completed
+                    } else {
+                        ActivityStatus::Partial
+                    };
+                    done.title = title;
+                    done.errors = report.errors.clone();
+                    if log_error.is_none() {
+                        match self.log.update(&done) {
+                            Ok(()) => report.entry = Some(done),
+                            Err(e) => log_error = Some(format!("Couldn't update the activity log: {e}")),
+                        }
+                    }
+                }
+                None if !report.errors.is_empty() && log_error.is_none() => {
+                    // Nothing moved, but record the failure.
+                    let failed = ActivityEntry {
+                        id: new_id(),
+                        date: fsutil::now(),
+                        title,
+                        source: opts.source.clone(),
+                        bytes: 0,
+                        records: Vec::new(),
+                        status: ActivityStatus::Failed,
+                        errors: report.errors.clone(),
+                    };
+                    match self.log.append(failed.clone()) {
+                        Ok(()) => report.entry = Some(failed),
+                        Err(e) => log_error = Some(format!("Couldn't write the activity log: {e}")),
+                    }
+                }
+                None => {}
             }
-            report.entry = Some(entry);
+        }
+        if let Some(e) = log_error {
+            report.errors.push(e.clone());
+            report.log_error = Some(e);
         }
         report
     }
@@ -280,7 +412,7 @@ impl<'a> Cleaner<'a> {
         let mut entry = self.log.find(id).ok_or_else(|| format!("No activity entry with id {id}"))?;
         let mut errors = Vec::new();
         let mut indexes = Vec::new();
-        let mut originals = Vec::new();
+        let mut requests = Vec::new();
         for (i, record) in entry.records.iter().enumerate() {
             if record.restored {
                 continue;
@@ -291,12 +423,16 @@ impl<'a> Cleaner<'a> {
                 continue;
             }
             indexes.push(i);
-            originals.push(original);
+            requests.push(RestoreRequest {
+                original,
+                deleted_at: record.deleted_at,
+                deleted_until: record.deleted_until,
+            });
         }
         if indexes.is_empty() && errors.is_empty() {
             return Err("Everything from this cleanup has already been restored.".to_string());
         }
-        let results = if originals.is_empty() { Vec::new() } else { self.trash.restore(&originals) };
+        let results = if requests.is_empty() { Vec::new() } else { self.trash.restore(&requests) };
         let mut restored = 0;
         for (i, result) in indexes.into_iter().zip(results) {
             match result {
@@ -315,4 +451,53 @@ impl<'a> Cleaner<'a> {
         self.log.update(&entry).map_err(|e| format!("Couldn't write the activity log: {e}"))?;
         Ok(RestoreReport { entry, restored, errors })
     }
+}
+
+/// Checks that `planned` fits in the Recycle Bin of each drive it is on, counting what this run
+/// has already moved there, and reserves the space. Fails closed: no drive, unreadable settings
+/// or a disabled bin all refuse the item.
+fn reserve_bin_space(
+    bins: &dyn RecycleBinSettings,
+    planned: &[(PathBuf, u64)],
+    cache: &mut HashMap<String, Result<RecycleBinInfo, String>>,
+    used: &mut HashMap<String, u64>,
+) -> Result<(), String> {
+    let mut need: Vec<(String, u64)> = Vec::new();
+    for (path, bytes) in planned {
+        let drive = bins.bin_of(path).ok_or_else(|| {
+            format!("{} has no Recycle Bin (a network location?), so Windows would delete it permanently", path.display())
+        })?;
+        match need.iter_mut().find(|(d, _)| *d == drive) {
+            Some((_, total)) => *total += bytes,
+            None => need.push((drive, *bytes)),
+        }
+    }
+    for (drive, bytes) in &need {
+        let info = cache.entry(drive.clone()).or_insert_with(|| bins.settings(drive));
+        let info = info.as_ref().map_err(|e| {
+            format!("Couldn't read the Recycle Bin settings for {drive} ({e}), so SpaceSaver won't risk a permanent delete")
+        })?;
+        if info.disabled {
+            return Err(format!("The Recycle Bin is turned off for {drive}, so Windows would delete it permanently"));
+        }
+        let already = used.get(drive).copied().unwrap_or(0);
+        if already.saturating_add(*bytes) > info.max_bytes {
+            return Err(if already == 0 {
+                format!(
+                    "Too big for the Recycle Bin ({} limit on {drive}), so Windows would delete it permanently",
+                    format_bytes(info.max_bytes)
+                )
+            } else {
+                format!(
+                    "The Recycle Bin on {drive} holds {} and this cleanup already moved {} there; adding this would make Windows delete items for good",
+                    format_bytes(info.max_bytes),
+                    format_bytes(already)
+                )
+            });
+        }
+    }
+    for (drive, bytes) in need {
+        *used.entry(drive).or_insert(0) += bytes;
+    }
+    Ok(())
 }

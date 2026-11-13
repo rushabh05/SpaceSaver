@@ -2,30 +2,33 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 //! SpaceSaver for Windows: a Tauri shell around `spacesaver-core`. The frontend in `ui/` never
-//! passes paths to delete; it passes item ids from the last scan, and every path still goes
-//! through the safety guard.
+//! passes paths to delete; it passes item ids and the id of the scan it showed, and the backend
+//! only cleans from a scan this process made in the last hour. Every path still goes through
+//! the safety guard.
 
 use spacesaver_core as ss;
 use ss::{
     ActivityEntry, CleanOptions, CleanReport, Cleaner, DiskInfo, GuardConfig, RestoreReport, SafetyGuard, ScanEnv,
-    ScanOptions, ScanSummary, Store, SystemTrash,
+    ScanOptions, ScanSummary, Store, SystemRecycleBin, SystemTrash,
 };
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::Emitter;
 
-static LAST_SCAN: Mutex<Option<ScanSummary>> = Mutex::new(None);
+/// A scan older than this must be repeated before cleaning: projects may have become active,
+/// apps may be running and sizes (which the Recycle Bin checks use) may have changed.
+const MAX_SCAN_AGE: Duration = Duration::from_secs(60 * 60);
 
-fn cached_scan() -> Option<ScanSummary> {
-    let mut slot = LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner());
-    if slot.is_none() {
-        *slot = Store::open_default().load_scan();
-    }
-    slot.clone()
+/// The last scan this process made. Only this one is ever cleaned from.
+struct LiveScan {
+    summary: ScanSummary,
+    made: Instant,
 }
 
-fn set_cached_scan(summary: ScanSummary) {
-    let _ = Store::open_default().save_scan(&summary);
-    *LAST_SCAN.lock().unwrap_or_else(|e| e.into_inner()) = Some(summary);
+static LIVE_SCAN: Mutex<Option<LiveScan>> = Mutex::new(None);
+
+fn live_scan() -> std::sync::MutexGuard<'static, Option<LiveScan>> {
+    LIVE_SCAN.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 #[tauri::command]
@@ -33,9 +36,14 @@ fn disk_status() -> Option<DiskInfo> {
     ss::system::disk_info(&ss::system::system_drive())
 }
 
+/// The scan to show: this session's, or else the one saved by an earlier run or the CLI. A
+/// saved scan is only for display; cleaning needs a fresh scan.
 #[tauri::command]
 fn last_scan() -> Option<ScanSummary> {
-    cached_scan()
+    if let Some(live) = live_scan().as_ref() {
+        return Some(live.summary.clone());
+    }
+    Store::open_default().load_scan()
 }
 
 #[tauri::command]
@@ -47,13 +55,39 @@ async fn scan() -> Result<ScanSummary, String> {
     })
     .await
     .map_err(|e| e.to_string())?;
-    set_cached_scan(summary.clone());
+    let _ = Store::open_default().save_scan(&summary);
+    *live_scan() = Some(LiveScan { summary: summary.clone(), made: Instant::now() });
     Ok(summary)
 }
 
+/// The live scan, if it is `scan_id` and fresh enough to clean from.
+fn scan_to_clean(scan_id: &str) -> Result<ScanSummary, String> {
+    let slot = live_scan();
+    let live = slot.as_ref().ok_or_else(|| "Scan again before cleaning.".to_string())?;
+    if live.summary.id != scan_id {
+        return Err("The scan changed after you opened this review. Check the list again before cleaning.".to_string());
+    }
+    if live.made.elapsed() > MAX_SCAN_AGE {
+        return Err("This scan is more than an hour old. Scan again before cleaning.".to_string());
+    }
+    Ok(live.summary.clone())
+}
+
+/// Drops what moved from the live scan, unless a newer scan replaced it meanwhile.
+fn forget_moved(scan_id: &str, moved: &[String]) {
+    let mut slot = live_scan();
+    if let Some(live) = slot.as_mut().filter(|l| l.summary.id == scan_id) {
+        live.summary.items.retain(|i| !moved.contains(&i.id));
+        live.summary.refresh();
+        let _ = Store::open_default().save_scan(&live.summary);
+    }
+}
+
+/// Cleans items `ids` from scan `scan_id`, which must be the scan this process made last and
+/// no more than an hour old.
 #[tauri::command]
-async fn clean(app: tauri::AppHandle, ids: Vec<String>) -> Result<CleanReport, String> {
-    let summary = cached_scan().ok_or_else(|| "Scan first.".to_string())?;
+async fn clean(app: tauri::AppHandle, ids: Vec<String>, scan_id: String) -> Result<CleanReport, String> {
+    let summary = scan_to_clean(&scan_id)?;
     let items: Vec<_> = summary.items.iter().filter(|i| ids.contains(&i.id)).cloned().collect();
     if items.is_empty() {
         return Err("Nothing selected.".to_string());
@@ -63,19 +97,15 @@ async fn clean(app: tauri::AppHandle, ids: Vec<String>) -> Result<CleanReport, S
         let log = store.activity();
         let guard = SafetyGuard::new(GuardConfig::from_system());
         let trash = SystemTrash;
-        let home = ScanEnv::from_system().home;
-        let cleaner = Cleaner::new(&guard, &trash, &log).with_recycle_bin(ss::system::recycle_bin_info(&home));
+        let bins = SystemRecycleBin;
+        let cleaner = Cleaner::new(&guard, &trash, &log).with_recycle_bin(&bins);
         cleaner.clean(&items, &CleanOptions::run("app"), &mut |p| {
             let _ = app.emit("clean-progress", p.clone());
         })
     })
     .await
     .map_err(|e| e.to_string())?;
-
-    let mut updated = summary;
-    updated.items.retain(|i| !report.moved_ids.contains(&i.id));
-    updated.refresh();
-    set_cached_scan(updated);
+    forget_moved(&scan_id, &report.moved_ids);
     Ok(report)
 }
 
@@ -97,13 +127,18 @@ async fn restore(id: String) -> Result<RestoreReport, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Opens Explorer with the item selected. Only for paths in the last scan.
+/// Opens Explorer with the item selected. Only for local paths in the scan being shown; never
+/// a network (UNC) path, which would make Windows connect to that server.
 #[tauri::command]
 fn reveal(path: String) -> Result<(), String> {
-    let known = cached_scan()
+    let network = path.starts_with(r"\\") || path.starts_with("//") || path.starts_with(r"\/") || path.starts_with(r"/\");
+    if network || !ss::paths::is_absolute(&path) || path.contains('"') {
+        return Err("Unknown path".to_string());
+    }
+    let known = last_scan()
         .map(|s| s.items.iter().any(|i| i.paths.iter().any(|p| p == &path)))
         .unwrap_or(false);
-    if !known || path.contains('"') {
+    if !known {
         return Err("Unknown path".to_string());
     }
     let target = if std::path::Path::new(&path).exists() {

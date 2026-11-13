@@ -214,7 +214,8 @@ impl SafetyGuard {
     /// profile and its top-level folders, AppData roots, credential folders (`.ssh`, `.aws`,
     /// `.gnupg`, `.kube`, `.docker`...), anything inside a `.git` folder, any reparse point
     /// (symlink, junction...) and anything that isn't inside the user profile or `%TEMP%`
-    /// once junctions and short names in its parent are resolved.
+    /// once junctions and 8.3 short names anywhere in the path are resolved. The rules run on
+    /// both the path as given and its resolved form, and the resolved form is returned.
     pub fn validate(&self, raw: &Path) -> Result<PathBuf, SafetyError> {
         let raw_s = raw.to_string_lossy().to_string();
         if !paths::is_absolute(&raw_s) {
@@ -229,14 +230,18 @@ impl SafetyGuard {
         if is_reparse(&meta) {
             return Err(protected(&lexical, "link, junction or other reparse point"));
         }
-        let (Some(parent), Some(name)) = (lexical_path.parent(), lexical_path.file_name()) else {
+        if lexical_path.parent().is_none() || lexical_path.file_name().is_none() {
             return Err(protected(&lexical, "drive root"));
-        };
+        }
 
-        // Resolve junctions, symlinks and 8.3 short names in the parent chain, so
-        // "~\link-to-somewhere\x" is judged by where it really is.
-        let canon_parent = fs::canonicalize(parent).map_err(|_| SafetyError::Missing(lexical.clone()))?;
-        let resolved = paths::normalize(&canon_parent.join(name).to_string_lossy());
+        // The target itself is not a link, so canonicalising the whole path resolves junctions
+        // and symlinks in its parents and 8.3 short names everywhere, the last component
+        // included ("~\AppData\Roaming\MICROS~1" is judged as "...\Microsoft").
+        let canon = fs::canonicalize(&lexical_path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => SafetyError::Missing(lexical.clone()),
+            _ => protected(&lexical, &format!("couldn't resolve its real path: {e}")),
+        })?;
+        let resolved = paths::normalize(&canon.to_string_lossy());
         let res_key = key(&resolved);
         if res_key != lex_key {
             self.check_rules(&resolved, &res_key)?;

@@ -276,7 +276,8 @@ pub fn project_activity(root: &Path, root_modified: i64, stop_at: &Path) -> Proj
 }
 
 /// The `.git` directory for `path` or one of its parents (up to `stop_at`). Handles worktrees,
-/// where `.git` is a file containing `gitdir: <path>`.
+/// where `.git` is a file containing `gitdir: <path>`, except network (UNC) targets, which are
+/// ignored.
 pub fn find_git_dir(path: &Path, stop_at: &Path) -> Option<PathBuf> {
     let stop = paths::key_of(stop_at);
     let mut dir = path.to_path_buf();
@@ -289,9 +290,14 @@ pub fn find_git_dir(path: &Path, stop_at: &Path) -> Option<PathBuf> {
             if meta.is_file() {
                 if let Ok(text) = fs::read_to_string(&dot_git) {
                     if let Some(rest) = text.trim().strip_prefix("gitdir:") {
-                        let target = rest.trim();
-                        let p = PathBuf::from(target.replace('/', "\\"));
-                        return Some(if paths::is_absolute(target) { p } else { dir.join(p) });
+                        let target = rest.trim().replace('/', "\\");
+                        // A network gitdir (`\\server\share`) is never followed: just opening it
+                        // makes Windows connect and offer the user's credentials (NTLM).
+                        if target.starts_with("\\\\") || target.starts_with("\\??\\") {
+                            return None;
+                        }
+                        let p = PathBuf::from(&target);
+                        return Some(if paths::is_absolute(&target) { p } else { dir.join(p) });
                     }
                 }
             }
