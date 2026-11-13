@@ -139,7 +139,12 @@ impl SafetyGuard {
         let homes = variants(&cfg.home);
         let temps = variants(&cfg.temp);
         let mut allowed = homes.clone();
-        allowed.extend(temps.iter().cloned());
+        // %TEMP% is an allowed root only when it really looks like a temp folder: a TEMP set to
+        // a drive root or a data folder must not make everything in it deletable.
+        let local = cfg.local.clone().unwrap_or_else(|| cfg.home.join("AppData").join("Local"));
+        if crate::env::temp_problem(&cfg.temp, &cfg.home, &local).is_none() {
+            allowed.extend(temps.iter().cloned());
+        }
 
         let mut protected_exact: Vec<String> = Vec::new();
         let mut sensitive: Vec<(String, &'static str)> = Vec::new();
@@ -279,6 +284,11 @@ impl SafetyGuard {
         for (tree, reason) in &self.sensitive {
             if is_within(k, tree) || is_within(tree, k) {
                 return Err(protected(shown, reason));
+            }
+        }
+        if let Some(parent) = &parent_key {
+            if Path::new(parent).parent().is_none() {
+                return Err(protected(shown, "top-level folder of a drive"));
             }
         }
         if k.split('\\').any(|c| c == ".git") {

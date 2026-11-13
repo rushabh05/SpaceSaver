@@ -95,17 +95,17 @@ impl Trasher for SystemTrash {
     }
 }
 
-/// Recycle Bin settings, per drive. The cleaner asks once per drive and run.
+/// Recycle Bin settings, per volume. The cleaner asks once per volume and run.
 pub trait RecycleBinSettings {
-    /// The Recycle Bin `path` would go to (its drive root, `C:\`), or `None` when it has none
-    /// (a network path), so Windows would delete it permanently.
+    /// The root of the volume that really holds `path` (`C:\`, or the folder a volume is
+    /// mounted at), or `None` when that can't be told. The cleaner then refuses the path.
     fn bin_of(&self, path: &Path) -> Option<String> {
-        crate::system::drive_of(path)
+        crate::system::volume_root_of(path)
     }
 
-    /// The settings of the Recycle Bin on `drive`. An error means they couldn't be read, and
-    /// the cleaner then refuses everything on that drive.
-    fn settings(&self, drive: &str) -> Result<RecycleBinInfo, String>;
+    /// The Recycle Bin settings of the volume at `root`. An error means they couldn't be read,
+    /// and the cleaner then refuses everything on that volume.
+    fn settings(&self, root: &str) -> Result<RecycleBinInfo, String>;
 }
 
 /// The real settings, from the registry.
@@ -113,8 +113,8 @@ pub trait RecycleBinSettings {
 pub struct SystemRecycleBin;
 
 impl RecycleBinSettings for SystemRecycleBin {
-    fn settings(&self, drive: &str) -> Result<RecycleBinInfo, String> {
-        crate::system::recycle_bin_info(drive)
+    fn settings(&self, root: &str) -> Result<RecycleBinInfo, String> {
+        crate::system::recycle_bin_info(root)
     }
 }
 
@@ -453,51 +453,59 @@ impl<'a> Cleaner<'a> {
     }
 }
 
-/// Checks that `planned` fits in the Recycle Bin of each drive it is on, counting what this run
-/// has already moved there, and reserves the space. Fails closed: no drive, unreadable settings
-/// or a disabled bin all refuse the item.
+/// Checks that `planned` fits in the Recycle Bin of each volume it is on, counting what this
+/// run has already moved there, and reserves the space. Fails closed: an unknown volume,
+/// unreadable settings, a volume without a Recycle Bin or a disabled bin all refuse the item.
 fn reserve_bin_space(
     bins: &dyn RecycleBinSettings,
     planned: &[(PathBuf, u64)],
     cache: &mut HashMap<String, Result<RecycleBinInfo, String>>,
     used: &mut HashMap<String, u64>,
 ) -> Result<(), String> {
-    let mut need: Vec<(String, u64)> = Vec::new();
+    let mut need: Vec<(RecycleBinInfo, u64)> = Vec::new();
     for (path, bytes) in planned {
-        let drive = bins.bin_of(path).ok_or_else(|| {
-            format!("{} has no Recycle Bin (a network location?), so Windows would delete it permanently", path.display())
+        let root = bins.bin_of(path).ok_or_else(|| {
+            format!("Couldn't tell which drive {} is on, so SpaceSaver won't risk a permanent delete", path.display())
         })?;
-        match need.iter_mut().find(|(d, _)| *d == drive) {
+        let info = cache.entry(root.clone()).or_insert_with(|| bins.settings(&root)).clone().map_err(|e| {
+            format!("Couldn't read the Recycle Bin settings for {root} ({e}), so SpaceSaver won't risk a permanent delete")
+        })?;
+        if let Some(kind) = &info.no_bin {
+            return Err(format!(
+                "{} is on {kind} ({}), which has no Recycle Bin, so Windows would delete it permanently",
+                path.display(),
+                info.drive
+            ));
+        }
+        if info.disabled {
+            return Err(format!("The Recycle Bin is turned off for {}, so Windows would delete it permanently", info.drive));
+        }
+        match need.iter_mut().find(|(known, _)| known.volume == info.volume) {
             Some((_, total)) => *total += bytes,
-            None => need.push((drive, *bytes)),
+            None => need.push((info, *bytes)),
         }
     }
-    for (drive, bytes) in &need {
-        let info = cache.entry(drive.clone()).or_insert_with(|| bins.settings(drive));
-        let info = info.as_ref().map_err(|e| {
-            format!("Couldn't read the Recycle Bin settings for {drive} ({e}), so SpaceSaver won't risk a permanent delete")
-        })?;
-        if info.disabled {
-            return Err(format!("The Recycle Bin is turned off for {drive}, so Windows would delete it permanently"));
-        }
-        let already = used.get(drive).copied().unwrap_or(0);
+    for (info, bytes) in &need {
+        let already = used.get(&info.volume).copied().unwrap_or(0);
         if already.saturating_add(*bytes) > info.max_bytes {
             return Err(if already == 0 {
                 format!(
-                    "Too big for the Recycle Bin ({} limit on {drive}), so Windows would delete it permanently",
-                    format_bytes(info.max_bytes)
+                    "Too big for the Recycle Bin ({} limit on {}), so Windows would delete it permanently",
+                    format_bytes(info.max_bytes),
+                    info.drive
                 )
             } else {
                 format!(
-                    "The Recycle Bin on {drive} holds {} and this cleanup already moved {} there; adding this would make Windows delete items for good",
+                    "The Recycle Bin on {} holds {} and this cleanup already moved {} there; adding this would make Windows delete items for good",
+                    info.drive,
                     format_bytes(info.max_bytes),
                     format_bytes(already)
                 )
             });
         }
     }
-    for (drive, bytes) in need {
-        *used.entry(drive).or_insert(0) += bytes;
+    for (info, bytes) in need {
+        *used.entry(info.volume).or_insert(0) += bytes;
     }
     Ok(())
 }

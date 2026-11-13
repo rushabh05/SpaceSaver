@@ -58,14 +58,35 @@ fn skipped_dirs(env: &ScanEnv) -> HashSet<String> {
         "scoop",
         r"go\pkg",
         "miniconda3",
+        "miniconda",
         "anaconda3",
         "miniforge3",
+        "mambaforge",
+        "micromamba",
     ]
     .iter()
     .map(|s| paths::key_of(&h.join(s)))
     .collect();
-    for p in [&env.local, &env.roaming, &env.temp, &env.cargo_home, &env.gradle_home, &env.go_mod, &env.android_sdk] {
+    // Tool folders that environment variables may have moved into the profile. Packages
+    // unpacked in them (with their own package.json, dist, coverage...) aren't projects.
+    for p in [
+        &env.local,
+        &env.roaming,
+        &env.cargo_home,
+        &env.gradle_home,
+        &env.go_mod,
+        &env.go_cache,
+        &env.android_sdk,
+        &env.deno_dir,
+        &env.hf_home,
+        &env.nuget_packages,
+        &env.ollama_models,
+    ] {
         skip.insert(paths::key_of(p));
+    }
+    // Only a real temp folder; an implausible TEMP (a drive root, say) must not hide projects.
+    if env.temp_problem().is_none() {
+        skip.insert(paths::key_of(&env.temp));
     }
     if let Some(d) = &env.data_dir {
         skip.insert(paths::key_of(d));

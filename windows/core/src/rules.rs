@@ -56,7 +56,8 @@ pub static ARTIFACT_RULES: &[ArtifactRule] = &[
     rule(".angular", &["angular.json"], NONE, "ng build", "Angular", SAFE),
     rule(".docusaurus", JS, NONE, "docusaurus build", "Docusaurus", SAFE),
     rule(".astro", JS, NONE, "astro build", "Astro", SAFE),
-    rule(".vercel", JS, NONE, "vercel build", "Vercel", SAFE),
+    // Holds the project link (project.json) and pulled env files, which `vercel build` doesn't restore.
+    rule(".vercel", JS, NONE, "vercel link, vercel pull, vercel build", "Vercel", REVIEW),
     rule(".nx", &["nx.json"], NONE, "nx build", "Nx", SAFE),
     rule(".expo", &["app.json", "app.config.js", "app.config.ts"], NONE, "expo start", "Expo", SAFE),
     rule("coverage", JS, NONE, "npm test -- --coverage", "Test coverage", SAFE),
@@ -81,7 +82,8 @@ pub static ARTIFACT_RULES: &[ArtifactRule] = &[
     rule("obj", DOTNET, NONE, "dotnet build", ".NET", SAFE),
     rule(".dart_tool", &["pubspec.yaml"], &["pubspec.lock"], "dart pub get", "Dart/Flutter", SAFE),
     rule("build", &["pubspec.yaml"], NONE, "flutter build", "Flutter", SAFE),
-    rule(".terraform", &["main.tf", "versions.tf", "providers.tf"], &[".terraform.lock.hcl"], "terraform init", "Terraform", SAFE),
+    // May hold local state (terraform.tfstate of the local backend, or workspaces), not just providers.
+    rule(".terraform", &["main.tf", "versions.tf", "providers.tf"], &[".terraform.lock.hcl"], "terraform init", "Terraform", REVIEW),
     rule("_build", &["mix.exs"], NONE, "mix compile", "Elixir", SAFE),
     rule("deps", &["mix.exs"], &["mix.lock"], "mix deps.get", "Elixir", SAFE),
     rule(".stack-work", &["stack.yaml"], NONE, "stack build", "Haskell", SAFE),
@@ -250,16 +252,26 @@ pub fn location_rules(env: &ScanEnv) -> Vec<LocationRule> {
                "pnpm's content-addressed store. Every pnpm project hard-links into it.",
                "`pnpm store prune` removes only unreferenced packages; deleting all of it means re-downloading everything.")
             .running("pnpm", &["pnpm"]).done(),
-        R::new("pkg.yarn", PackageCaches, "Yarn cache", vec![local.join(r"Yarn\Cache"), local.join(r"Yarn\Berry\cache")],
-               Risk::Safe, "Yarn's global package cache.", "Re-downloaded on the next yarn install.").done(),
+        R::new("pkg.yarn", PackageCaches, "Yarn cache", vec![local.join(r"Yarn\Cache")],
+               Risk::Safe, "Yarn 1's global package cache.", "Re-downloaded on the next yarn install.").done(),
+        // Plug'n'Play projects load their packages straight from this cache at runtime.
+        R::new("pkg.yarn.berry", PackageCaches, "Yarn Berry global cache", vec![local.join(r"Yarn\Berry\cache")],
+               Risk::Review, "Yarn 2+ global cache. Plug'n'Play projects run their packages straight from it, so they break until reinstalled.",
+               "Run `yarn install` in each Yarn project.").done(),
         R::new("pkg.bun", PackageCaches, "Bun cache", vec![home.join(r".bun\install\cache")], Risk::Safe,
                "Bun's global install cache.", "Re-downloaded on the next bun install.").done(),
         R::new("pkg.pip", PackageCaches, "pip cache", vec![local.join(r"pip\Cache")], Risk::Safe,
                "Downloaded wheels and HTTP cache for pip.", "Re-downloaded on the next pip install.").done(),
         R::new("pkg.uv", PackageCaches, "uv cache", vec![local.join(r"uv\cache")], Risk::Safe,
                "uv's wheel and source cache.", "Re-downloaded by uv when needed.").running("uv", &["uv"]).done(),
-        R::new("pkg.poetry", PackageCaches, "Poetry cache", vec![local.join(r"pypoetry\Cache")], Risk::Safe,
-               "Poetry's package cache and the virtualenvs it created.", "Re-created by `poetry install`.").done(),
+        // Only the download caches: Poetry's virtualenvs live next to them and are separate items.
+        R::new("pkg.poetry", PackageCaches, "Poetry cache",
+               vec![local.join(r"pypoetry\Cache\cache"), local.join(r"pypoetry\Cache\artifacts")], Risk::Safe,
+               "Poetry's repository and download caches.", "Re-downloaded by the next `poetry install` (same as `poetry cache clear --all`).").done(),
+        R::new("pkg.poetry.venv", PackageCaches, "Poetry virtualenv", vec![local.join(r"pypoetry\Cache\virtualenvs\*")], Risk::Review,
+               "A virtualenv Poetry created for one project. It may hold packages you installed into it by hand.",
+               "Run `poetry install` in that project.")
+            .each(Label::Name).done(),
         R::new("pkg.nuget.http", PackageCaches, "NuGet HTTP cache",
                vec![local.join(r"NuGet\v3-cache"), local.join(r"NuGet\plugins-cache")], Risk::Safe,
                "Package metadata and .nupkg downloads NuGet keeps between restores.",
@@ -278,8 +290,6 @@ pub fn location_rules(env: &ScanEnv) -> Vec<LocationRule> {
                vec![cargo.join(r"registry\cache"), cargo.join(r"registry\src"), cargo.join(r"git\checkouts"), cargo.join(r"git\db")],
                Risk::Safe, "Downloaded crate sources and git dependencies.",
                "Re-downloaded on the next cargo build.").running("Cargo", &["cargo", "rust-analyzer"]).done(),
-        R::new("pkg.go.build", PackageCaches, "Go build cache", vec![env.go_cache.clone()], Risk::Safe,
-               "Compiled package cache.", "Equivalent to `go clean -cache`.").done(),
         R::new("pkg.go.mod", PackageCaches, "Go module cache", vec![env.go_mod.clone()], Risk::Review,
                "Downloaded Go modules.", "Equivalent to `go clean -modcache`; modules re-download on build.").done(),
         // Only the cache folders: DENO_DIR also holds Deno KV databases and localStorage
@@ -368,7 +378,32 @@ pub fn location_rules(env: &ScanEnv) -> Vec<LocationRule> {
                 .running(name, &[exe]).done(),
         );
     }
+    // GOCACHE can point anywhere, so it is offered only when the folder is clearly Go's.
+    if looks_like_go_cache(&env.go_cache) {
+        rules.push(
+            R::new("pkg.go.build", PackageCaches, "Go build cache", vec![env.go_cache.clone()], Risk::Safe,
+                   "Compiled package cache.", "Equivalent to `go clean -cache`.").done(),
+        );
+    }
     rules
+}
+
+/// Go writes a README into its build cache ("...cached build artifacts from the Go build
+/// system...") and a `trim.txt` once it has trimmed it. Either one, as a real file, will do.
+pub fn looks_like_go_cache(dir: &Path) -> bool {
+    let real_file = |p: &Path| crate::fsutil::lstat(p).map(|m| m.is_file() && !crate::fsutil::is_reparse(&m)).unwrap_or(false);
+    let readme = dir.join("README");
+    if real_file(&readme) {
+        let mut text = String::new();
+        let read = std::fs::File::open(&readme).and_then(|f| {
+            use std::io::Read;
+            f.take(4096).read_to_string(&mut text)
+        });
+        if read.is_ok() && text.contains("Go build") {
+            return true;
+        }
+    }
+    real_file(&dir.join("trim.txt"))
 }
 
 #[cfg(test)]
@@ -400,6 +435,12 @@ mod tests {
         assert!(match_artifact(".next", &names(&["next.config.mjs"])).is_some());
         assert!(match_artifact(".venv", &names(&["pyproject.toml"])).is_some());
         assert!(match_artifact(".venv", &names(&["main.py"])).is_none());
+    }
+
+    #[test]
+    fn stateful_artifacts_need_review() {
+        assert_eq!(match_artifact(".terraform", &names(&["main.tf"])).unwrap().risk, Risk::Review);
+        assert_eq!(match_artifact(".vercel", &names(&["package.json"])).unwrap().risk, Risk::Review);
     }
 
     #[test]

@@ -116,6 +116,86 @@ impl ScanEnv {
     }
 }
 
+impl ScanEnv {
+    /// Why `self.temp` can't be trusted as a temp folder, if it can't. See [`temp_problem`].
+    pub fn temp_problem(&self) -> Option<String> {
+        temp_problem(&self.temp, &self.home, &self.local)
+    }
+}
+
+/// Why `temp` doesn't look like a real temp folder, or `None` when it does. Old files in it are
+/// only offered, and it is only an allowed place to delete from, when it does.
+///
+/// A temp folder is `%LOCALAPPDATA%\Temp` (or a folder inside it, such as a Remote Desktop
+/// session's `Temp\2`), or a folder named `Temp` or `Tmp`, that is not a drive or share root,
+/// not the profile or a folder above it, not a top-level folder of the profile, not inside
+/// Desktop, Documents, Downloads, Pictures, Music, Videos, Favorites or OneDrive, and not a
+/// Windows system folder.
+pub fn temp_problem(temp: &Path, home: &Path, local: &Path) -> Option<String> {
+    use crate::paths::{is_within, key};
+    let canon = canonical_key;
+    let t = canon(temp);
+    let h = canon(home);
+    let shown = crate::paths::normalize(&temp.to_string_lossy());
+    let why = |reason: &str| Some(format!("TEMP points to {shown}, {reason}, so SpaceSaver doesn't treat it as a temp folder"));
+
+    let parent = Path::new(&t).parent().map(|p| key(&p.to_string_lossy()));
+    let Some(parent) = parent else { return why("the root of a drive or network share") };
+    if is_within(&h, &t) {
+        return why("which is your user profile or a folder above it");
+    }
+    if parent == h {
+        return why("a top-level folder of your user profile");
+    }
+    let mut personal: Vec<String> = ["Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos", "Favorites"]
+        .iter()
+        .map(|sub| key(&format!(r"{h}\{sub}")))
+        .collect();
+    for var in ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"] {
+        if let Some(p) = std::env::var_os(var).filter(|v| !v.is_empty()) {
+            personal.push(canon(Path::new(&p)));
+        }
+    }
+    if personal.iter().any(|p| is_within(&t, p)) {
+        return why("inside one of your personal folders");
+    }
+    for sys in crate::safety::system_dirs() {
+        let s = canon(&sys);
+        if is_within(&t, &s) || is_within(&s, &t) {
+            return why("a Windows system folder");
+        }
+    }
+    let default_temp = canon(&local.join("Temp"));
+    let name = crate::paths::name(&t);
+    if is_within(&t, &default_temp) || name == "temp" || name == "tmp" {
+        return None;
+    }
+    why("which isn't named Temp or Tmp")
+}
+
+/// Comparison key of `p` with links and 8.3 names resolved. A path that doesn't exist yet is
+/// resolved through its nearest existing parent.
+fn canonical_key(p: &Path) -> String {
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut current = p.to_path_buf();
+    loop {
+        if let Ok(resolved) = std::fs::canonicalize(&current) {
+            let mut full = resolved;
+            for part in tail.iter().rev() {
+                full.push(part);
+            }
+            return crate::paths::key(&full.to_string_lossy());
+        }
+        match (current.file_name().map(|n| n.to_os_string()), current.parent()) {
+            (Some(name), Some(parent)) => {
+                tail.push(name);
+                current = parent.to_path_buf();
+            }
+            _ => return crate::paths::key(&p.to_string_lossy()),
+        }
+    }
+}
+
 fn var_path(name: &str) -> Option<PathBuf> {
     let v = std::env::var_os(name)?;
     if v.is_empty() {

@@ -238,6 +238,9 @@ pub struct ScanSummary {
     pub disk: Option<DiskInfo>,
     pub categories: Vec<CategorySummary>,
     pub items: Vec<CleanupItem>,
+    /// What the scan left out on purpose, and why (shown by the CLI).
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 impl ScanSummary {
@@ -260,7 +263,7 @@ impl ScanSummary {
                 }
             })
             .collect();
-        ScanSummary { id: crate::activity::new_id(), version: 1, date, duration_ms, disk, categories, items }
+        ScanSummary { id: crate::activity::new_id(), version: 1, date, duration_ms, disk, categories, items, notes: Vec::new() }
     }
 
     /// Items Smart Clean would move.

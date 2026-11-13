@@ -64,5 +64,11 @@ pub fn scan(env: &ScanEnv, guard: Option<&SafetyGuard>, opts: &ScanOptions) -> S
 
     items.sort_by(|a, b| a.category.cmp(&b.category).then(b.size.cmp(&a.size)));
     let disk = system::disk_info(&system::system_drive());
-    ScanSummary::new(items, disk, env.now, start.elapsed().as_millis() as u64)
+    let mut summary = ScanSummary::new(items, disk, env.now, start.elapsed().as_millis() as u64);
+    if opts.wants(Category::SystemJunk) {
+        if let Some(problem) = env.temp_problem() {
+            summary.notes.push(format!("Old temporary files skipped: {problem}."));
+        }
+    }
+    summary
 }
