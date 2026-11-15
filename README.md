@@ -41,9 +41,15 @@ disk (via firmlinks, without double counting), or any folder.
   matching manifest sits next to it. Activity comes from the git reflog and index (no `git`
   subprocess) plus root file edits. Active projects are never recommended. Missing lockfiles
   are flagged, and orphaned `node_modules` are detected.
-- **Xcode & Simulators:** DerivedData, device support per OS version, archives (Caution),
-  previews, simulator caches, and every simulator with runtime and last boot. Simulators
-  whose runtime is gone are marked Safe. Uses `simctl delete` when Xcode is installed.
+- **Xcode & Simulators:** DerivedData, device support per OS version (the newest version you've
+  connected stays Review), archives (Caution), previews, simulator caches, and every simulator
+  with runtime and last boot. Simulators whose runtime is gone are marked Safe. Uses
+  `simctl delete` when Xcode is installed.
+- **Simulator runtimes:** the 5–9 GB iOS, watchOS, tvOS and visionOS runtimes, read from
+  CoreSimulator's image database so they show up even without Xcode. Runtimes your Xcode can't
+  use are Safe; the rest are Review. They're removed with `simctl runtime delete`, because macOS
+  keeps them in protected folders; without Xcode they're shown with instructions. Also stale
+  simulator dyld caches (built for an earlier macOS or a runtime that's gone).
 - **Docker:** asks the engine (`docker system df`) and prunes build cache, stopped
   containers, unused images and volumes (volumes are Caution and never preselected). Shows the
   VM disk image, which it never deletes. Supports Docker Desktop, OrbStack and colima.

@@ -112,6 +112,17 @@ enum DemoData {
                  tags: ["Simulator", "11 devices"], "Simulators for iOS versions no longer installed. Xcode can't run them.",
                  method: .command(executable: "/usr/bin/xcrun", arguments: ["simctl", "delete", "unavailable"]), now: now),
 
+            item("runtime-ios175", .xcode, "iOS 17.5 Simulator runtime", "/Library/Developer/CoreSimulator/Images/1B5F8E7A.dmg",
+                 gb: 7.91, .safe, days: 240, tags: ["iOS 17.5", "Used 8mo", "iOS 18.2 is installed", "Xcode can't use it"],
+                 "A simulator runtime: the iOS system that simulators boot. Your installed Xcode can't run this runtime, so it's dead weight.",
+                 regenerate: "Download it again in Xcode › Settings › Components (several GB).",
+                 method: .command(executable: "/usr/bin/xcrun", arguments: ["simctl", "runtime", "delete", "1B5F8E7A"]), group: nil, now: now),
+            item("runtime-ios182", .xcode, "iOS 18.2 Simulator runtime", "/Library/Developer/CoreSimulator/Images/7C2A90D4.dmg",
+                 gb: 8.36, .review, days: 6, tags: ["iOS 18.2", "Used 6d", "Newest iOS runtime"],
+                 "A simulator runtime: the iOS system that simulators boot. Simulators that use it stop working until you download it again.",
+                 regenerate: "Download it again in Xcode › Settings › Components (several GB).",
+                 method: .command(executable: "/usr/bin/xcrun", arguments: ["simctl", "runtime", "delete", "7C2A90D4"]), now: now),
+
             item("docker-cache", .docker, "Docker build cache", "Library/Containers/com.docker.docker", gb: 6.80, .review, days: 35,
                  tags: ["Docker", "Builder cache"], "Layers cached by docker build. Builds are slower until the cache refills.",
                  method: .command(executable: "/usr/local/bin/docker", arguments: ["builder", "prune", "-f"]), now: now),

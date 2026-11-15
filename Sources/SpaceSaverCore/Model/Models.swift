@@ -111,7 +111,7 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .projectArtifacts:
             return "node_modules, build outputs and virtualenvs in projects you haven't touched lately."
         case .xcode:
-            return "DerivedData, device support files, old archives and simulators."
+            return "DerivedData, device support, old archives, simulators and simulator runtimes."
         case .docker:
             return "Build cache, unused images, stopped containers and the Docker VM disk."
         case .packageCaches:

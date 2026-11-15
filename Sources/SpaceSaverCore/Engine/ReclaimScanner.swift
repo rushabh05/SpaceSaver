@@ -30,8 +30,9 @@ public final class ReclaimScanner: @unchecked Sendable {
         let cancel = cancellation
         add(.projectArtifacts) { ProjectAnalyzer(env: env, cancel: cancel).analyze() }
         add(.xcode) {
-            evaluator.evaluate(RuleCatalog.rules(for: .xcode), claimed: claimed)
+            SimulatorRuntimeAnalyzer.protectNewestDeviceSupport(evaluator.evaluate(RuleCatalog.rules(for: .xcode), claimed: claimed))
                 + SimulatorAnalyzer(env: env, running: running).analyze()
+                + SimulatorRuntimeAnalyzer.live(env: env, running: running).analyze()
         }
         add(.docker) { DockerAnalyzer(env: env).analyze() }
         add(.packageCaches) { evaluator.evaluate(RuleCatalog.rules(for: .packageCaches), claimed: claimed) }

@@ -229,9 +229,15 @@ struct CategoryView: View {
                         HStack {
                             Text(name.isEmpty ? "Other" : name)
                             Spacer()
-                            Text(ByteFormat.string(rows.filter(\.isSelectable).totalSize)).monospacedDigit()
-                            Button(allSelected(rows) ? "Deselect" : "Select All") { toggleAll(rows) }
-                                .buttonStyle(.link).font(.caption)
+                            let selectable = rows.filter(\.isSelectable)
+                            if selectable.isEmpty {
+                                // Blocked or manual-only rows: show their size, but there's nothing to select.
+                                Text(ByteFormat.string(rows.totalSize)).monospacedDigit().foregroundStyle(.tertiary)
+                            } else {
+                                Text(ByteFormat.string(selectable.totalSize)).monospacedDigit()
+                                Button(allSelected(rows) ? "Deselect" : "Select All") { toggleAll(rows) }
+                                    .buttonStyle(.link).font(.caption)
+                            }
                         }
                     }
                 }

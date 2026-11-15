@@ -29,6 +29,7 @@ enum DebugSnapshot {
                 ("04-system-junk", .category(.systemJunk)),
                 ("05-activity", .activity),
                 ("06-agents", .approvals),
+                ("18-xcode", .category(.xcode)),
             ]
             for (name, section) in shots {
                 model.section = section
