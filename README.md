@@ -255,9 +255,14 @@ docs/                      download website (GitHub Pages)
 `SPACESAVER_SNAPSHOT=/tmp/shots build/SpaceSaver.app/Contents/MacOS/SpaceSaver` renders each
 screen to PNG and quits. It's a development aid that needs no Screen Recording permission.
 
+For marketing material, `SPACESAVER_DEMO=1` fills the app with made-up sample data (nothing is
+scanned, and cleaning is only simulated). `scripts/capture-tour.sh` walks through the app in that
+mode and saves each screen, and `scripts/make-video.swift` turns those screens into captioned
+16:9, 1:1 and 9:16 promo videos (needs ffmpeg).
+
 ## Not included
 
-- A full Windows version. [`windows/`](windows/README.md) is a beta (Rust core, CLI and Tauri app) covering
+- A full Windows version. [`windows/`](windows/README.md) is an early beta, not yet tested on many PCs (Rust core, CLI and Tauri app), covering
   developer caches, dormant build folders, old temp files and WSL/Docker disk images, with the
   Recycle Bin and restore. It is built and tested on GitHub Actions; its installer is attached to releases.
 - Intel builds. They should compile with `swift build --arch x86_64`, but haven't been tested.

@@ -367,7 +367,7 @@
       if (label) label.textContent = 'Download for Windows (beta)';
     });
     $$('[data-platform-meta]').forEach((el) => {
-      el.textContent = `Windows beta · ${size} · Windows 10 or 11, 64-bit · Free and open source`;
+      el.textContent = `Early beta · ${size} · Windows 10 or 11, 64-bit · Not code-signed yet: if SmartScreen warns, choose More info › Run anyway`;
     });
     $$('[data-windows-text]').forEach((el) => { el.textContent = 'Looking for the Mac app?'; });
     $$('.alt-platform [data-download-windows]').forEach((el) => {

@@ -53,6 +53,7 @@ struct CategoryView: View {
             }
         }
         .onChange(of: category) { focused = nil }
+        .onChange(of: model.demoFocus) { _, id in if let id { focused = id } }
     }
 
     @ViewBuilder private func content(all: [CleanupItem], visible: [CleanupItem]) -> some View {

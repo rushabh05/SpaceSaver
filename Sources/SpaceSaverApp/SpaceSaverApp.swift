@@ -16,6 +16,7 @@ struct SpaceSaverApp: App {
                 .task {
                     model.start()
                     DebugSnapshot.runIfRequested(model: model)
+                    DebugSnapshot.runTourIfRequested(model: model)
                 }
         }
         .windowToolbarStyle(.unified(showsTitle: false))

@@ -95,6 +95,103 @@ enum DebugSnapshot {
         }
     }
 
+    /// `SPACESAVER_TOUR=/some/dir`: walks through the app with the made-up data from DemoData and
+    /// saves each screen with screencapture (real window pixels, glass sidebar included), then quits.
+    /// Used for marketing screenshots and videos. Needs Screen Recording permission for whatever
+    /// launched it (the terminal). Nothing is scanned or cleaned: demo mode only simulates.
+    static func runTourIfRequested(model: AppModel) {
+        guard let dir = ProcessInfo.processInfo.environment["SPACESAVER_TOUR"], DemoMode.isOn else { return }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard let window = mainWindow else { NSApp.terminate(nil); return }
+            let original = window.frame
+            // Tall enough for the whole sidebar.
+            window.setContentSize(NSSize(width: 1200, height: 880))
+            window.center()
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            model.section = .activity
+            try? await Task.sleep(for: .seconds(0.8))
+
+            @MainActor func go(_ section: SidebarSection, focus: String? = nil, wait: Double = 1.6) async {
+                model.section = section
+                try? await Task.sleep(for: .seconds(0.6))
+                if let focus { model.demoFocus = focus }
+                try? await Task.sleep(for: .seconds(wait))
+            }
+            await go(.overview, wait: 3)
+            shoot(window, "01-overview", dir)
+            await go(.category(.projectArtifacts), focus: DemoData.focus[.projectArtifacts])
+            shoot(window, "02-projects", dir)
+            await go(.category(.aiSessions), focus: DemoData.focus[.aiSessions])
+            shoot(window, "03-ai-sessions", dir)
+            await go(.category(.agentWorktrees), focus: DemoData.focus[.agentWorktrees])
+            shoot(window, "04-worktrees", dir)
+            await go(.category(.xcode), focus: DemoData.focus[.xcode])
+            shoot(window, "05-xcode", dir)
+            await go(.apps, wait: 2)
+            shoot(window, "06-apps", dir)
+
+            // Clean the recommended items: the island's progress, then the result.
+            await go(.overview, wait: 1.5)
+            let island = IslandController.shared
+            island.pinned = true
+            model.peek("sparkles", .green, "Scan complete", "\(ByteFormat.string(model.recommendedItems.totalSize)) safe to clean")
+            try? await Task.sleep(for: .seconds(1.3))
+            shoot(island.islandWindow, "07-island-peek", dir)
+            model.islandPeek = nil
+            model.cleaning = CleaningProgress(done: 9, total: 21, title: "rust-cli › target")
+            try? await Task.sleep(for: .seconds(1.3))
+            shoot(island.islandWindow, "08-island-cleaning", dir)
+            island.state.hovering = true
+            try? await Task.sleep(for: .seconds(1.4))
+            shoot(island.islandWindow, "09-island-cleaning-expanded", dir)
+            island.state.hovering = false
+            model.cleaning = nil
+            _ = await model.simulateCleanup(model.recommendedItems.filter { $0.category.group == .developer },
+                                            step: .milliseconds(1))
+            try? await Task.sleep(for: .seconds(1.4))
+            shoot(island.islandWindow, "10-island-cleaned", dir)
+            try? await Task.sleep(for: .seconds(2.0))
+            shoot(window, "11-overview-after", dir)
+            window.setFrame(original, display: false)
+            NSApp.terminate(nil)
+        }
+    }
+
+    static var mainWindow: NSWindow? {
+        NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.frame.width > 600 && $0.title != "SpaceSaver Island" }
+    }
+
+    /// Real window pixels via screencapture, with the window's shadow on a transparent background.
+    static func shoot(_ window: NSWindow?, _ name: String, _ dir: String) {
+        guard let window else { return }
+        if window === mainWindow, !window.isKeyWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        }
+        // SPACESAVER_TOUR_EXTERNAL=1: when launched with `open` (so the window is active), the app
+        // has no Screen Recording permission of its own. It asks the launching script to capture
+        // instead: writes <name>.request with the window number and waits for <name>.png.
+        if ProcessInfo.processInfo.environment["SPACESAVER_TOUR_EXTERNAL"] != nil {
+            let request = Paths.join(dir, name + ".request"), png = Paths.join(dir, name + ".png")
+            try? String(window.windowNumber).write(toFile: request, atomically: true, encoding: .utf8)
+            let deadline = Date().addingTimeInterval(10)
+            while !FileManager.default.fileExists(atPath: png) && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            }
+            try? FileManager.default.removeItem(atPath: request)
+            return
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        task.arguments = ["-x", "-l\(window.windowNumber)", Paths.join(dir, name + ".png")]
+        try? task.run()
+        task.waitUntilExit()
+    }
+
     /// SPACESAVER_SNAPSHOT_DUMP=1: writes the main window's view tree (class and frame) next to
     /// each capture, to find what is wider than the window.
     static func dumpViews(name: String, dir: String) {

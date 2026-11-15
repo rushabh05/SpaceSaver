@@ -86,6 +86,8 @@ public struct CleanupReport: Sendable {
     public var entries: [ActivityEntry] = []
     public var skipped: [(CleanupItem, String)] = []
 
+    public init() {}
+
     public var bytesCleaned: Int64 { entries.filter { $0.status != .failed }.reduce(0) { $0 + $1.bytes } }
     public var bytesMovedToTrash: Int64 { entries.reduce(0) { $0 + $1.bytesInTrash } }
     public var errors: [String] { entries.flatMap(\.errors) + skipped.map { "\($0.0.title): \($0.1)" } }

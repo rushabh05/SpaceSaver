@@ -69,6 +69,8 @@ final class AppModel {
 
     // Navigation and feedback
     var section: SidebarSection = .overview
+    /// Demo tour only: the row a category view opens with.
+    var demoFocus: String?
     var cleaning: CleaningProgress?
     var islandPeek: IslandPeek?
     private var started = false
@@ -129,6 +131,7 @@ final class AppModel {
     func start() {
         guard !started else { return }
         started = true
+        if DemoMode.isOn { loadDemo(); return }
         scan = LastScanStore.load(paths: paths)
         selection = Set(scan?.items.filter { $0.recommended && $0.isSelectable }.map(\.id) ?? [])
         refreshDisk()
@@ -152,7 +155,7 @@ final class AppModel {
     }
 
     func refreshDisk() {
-        guard let status = DiskStatus.current() else { return }
+        guard !DemoMode.isOn, let status = DiskStatus.current() else { return }
         disk = status
         let store = HistoryStore(paths: paths)
         store.recordSample(status)
@@ -228,7 +231,7 @@ final class AppModel {
     }
 
     func startScan(categories: Set<CleanupCategory> = Set(CleanupCategory.reclaimScanCategories)) {
-        guard !isScanning else { return }
+        guard !isScanning, !DemoMode.isOn else { return }
         isScanning = true
         scanFinished = []
         scanPhase = "Starting"
@@ -282,6 +285,10 @@ final class AppModel {
 
     /// Runs on a background thread; returns the report on the main actor.
     func performCleanup(_ request: CleanupRequest, progress: @escaping @Sendable (Int, Int, String) -> Void) async -> CleanupReport {
+        if DemoMode.isOn {
+            _ = await simulateCleanup(request.items)
+            return CleanupReport()
+        }
         let engine = CleanupEngine(safety: SafetyGuard(excluded: settings.excludedPaths), log: ActivityLog(paths: paths),
                                    paths: paths)
         let items = request.items
@@ -342,6 +349,7 @@ final class AppModel {
     }
 
     func restore(_ entry: ActivityEntry) {
+        guard !DemoMode.isOn else { return }
         let engine = CleanupEngine(settings: settings)
         do {
             let n = try engine.restore(entry.id)
@@ -354,6 +362,7 @@ final class AppModel {
     }
 
     func purge(ids: Set<UUID>? = nil) {
+        guard !DemoMode.isOn else { return }
         let engine = CleanupEngine(settings: settings)
         Task.detached {
             let freed = engine.purge(olderThanDays: nil, ids: ids)
@@ -366,6 +375,7 @@ final class AppModel {
     }
 
     func purgeExpired(silent: Bool) {
+        guard !DemoMode.isOn else { return }
         let engine = CleanupEngine(settings: settings)
         let days = settings.trashRetentionDays
         Task.detached(priority: .utility) {

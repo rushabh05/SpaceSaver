@@ -4,7 +4,7 @@ import SwiftUI
 
 extension AppModel {
     func loadApps(force: Bool = false) {
-        guard !appsLoading, force || !appsLoaded else { return }
+        guard !appsLoading, force || !appsLoaded, !DemoMode.isOn else { return }
         appsLoading = true
         let env = ScanEnvironment(settings: settings)
         Task.detached(priority: .userInitiated) {
@@ -21,6 +21,7 @@ extension AppModel {
 
     /// Opens the usual review sheet for removing `app` and the chosen leftovers.
     func uninstall(_ app: AppRecord, leftovers: Set<String>) {
+        guard !DemoMode.isOn else { return show("Demo mode: nothing is uninstalled.") }
         let items = AppInventory(env: ScanEnvironment(settings: settings))
             .uninstallItems(app, leftovers: leftovers, running: RunningApps.snapshot())
         if let reason = items.first?.blockedReason {

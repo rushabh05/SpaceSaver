@@ -161,6 +161,7 @@ public struct WorktreeAnalyzer: Sendable {
             subtitle: Paths.abbreviate(tree.path, home: env.home), paths: [tree.path], size: size.bytes, risk: risk,
             explanation: explanation,
             regenerate: "Recreate it with `git worktree add` if you need it. Afterwards, `git worktree prune` in \(repoName) tidies git's record of it.",
-            lastModified: modified, tags: tags, blockedReason: blocked, group: tree.repo, itemCount: size.files)
+            lastModified: modified, tags: tags, blockedReason: blocked, group: Paths.abbreviate(tree.repo, home: env.home),
+            itemCount: size.files)
     }
 }
